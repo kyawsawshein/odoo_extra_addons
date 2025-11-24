@@ -19,4 +19,5 @@
     "assets": {
         "web.assets_backend": [],
     },
+    'application': True,
 }
