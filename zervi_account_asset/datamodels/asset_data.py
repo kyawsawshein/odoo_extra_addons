@@ -1,7 +1,8 @@
-from pydantic import BaseModel
+from dataclasses import dataclass
 
 
-class Assets(BaseModel):
+@dataclass
+class Assets:
     name: str
     code: str
     product_id: int

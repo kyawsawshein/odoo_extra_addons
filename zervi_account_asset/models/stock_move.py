@@ -43,7 +43,7 @@ class StockMove(models.Model):
             date_first_depreciation="last_day_period",
             method_end=lines[:1].expiration_date.strftime(DEFAULT_SERVER_DATE_FORMAT),
             method_time="end",
-        ).model_dump()
+        ).__dict__
         changed_vals = self.env["account.asset.asset"].onchange_category_id_values(
             vals["category_id"]
         )

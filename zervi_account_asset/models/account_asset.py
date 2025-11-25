@@ -121,7 +121,7 @@ class AccountAssetAsset(models.Model):
                             new_price=price,
                             user=self.env.user.name,
                         ),
-                    ).model_dump()
+                    ).__dict__
                 )
                 products.append(product.id)
                 _logger.info("Updated product price for depreciation.")
