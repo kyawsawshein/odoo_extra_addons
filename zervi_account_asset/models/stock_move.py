@@ -2,7 +2,7 @@
 import logging
 from collections import defaultdict
 
-from odoo import models
+from odoo import _, models
 from odoo.exceptions import UserError
 from odoo.tools.misc import DEFAULT_SERVER_DATE_FORMAT
 
@@ -55,8 +55,6 @@ class StockMove(models.Model):
         return True
 
     def update_assets(self):
-        expiry_date = max(self.move_line_ids.mapped("expiration_date"))
-        _logger.info(f"Expiry Date {expiry_date}")
         domain = [
             ("product_id", "=", self.product_id.id),
             ("state", "=", "open"),
@@ -64,14 +62,10 @@ class StockMove(models.Model):
             ("category_id", "=", self.product_id.asset_category_id.id),
             ("quantity", ">", 0),
         ]
-        if expiry_date:
-            domain.append(
-                ("method_end", "<=", expiry_date.strftime(DEFAULT_SERVER_DATE_FORMAT))
-            )
         asset_qty = self.product_uom_qty
         _logger.info(f"Asset get domain : {domain}")
         assets = self.env["account.asset.asset"].search(
-            domain, limit=asset_qty, order="method_end desc"
+            domain, limit=asset_qty, order="method_end asc"
         )
         if not assets:
             raise UserError(_("No assets found."))
@@ -79,7 +73,9 @@ class StockMove(models.Model):
         remove_assets = defaultdict(dict)
         for asset in assets:
             remove_qty = min(asset.quantity, asset_qty)
-            salvage_value = (asset.value / asset.quantity) * remove_qty
+            salvage_value = asset.salvage_value + (
+                (asset.value_residual / asset.quantity) * remove_qty
+            )
             remove_assets[asset.id] = {
                 "quantity": asset.quantity - self.quantity,
                 "salvage_value": salvage_value,
