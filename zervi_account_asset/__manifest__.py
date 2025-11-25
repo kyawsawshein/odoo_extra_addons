@@ -1,6 +1,6 @@
 {
     "name": "Zervi Assets Management",
-    "version": "19.1.0.0",
+    "version": "1.0.0",
     "author": "Zervi",
     "depends": ["stock_account", "om_account_asset"],
     "description": """Manage assets owned by a company or a person. 
@@ -9,6 +9,7 @@
     "category": "Accounting",
     "sequence": 10,
     "website": "https://www.zerviglobal.com",
+    'license': 'LGPL-3',
     "images": [],
     "data": [
         "data/account_asset_data.xml",
