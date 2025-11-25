@@ -1,8 +1,10 @@
+# pylint: disable = (protected-access)
+
 import logging
 from collections import defaultdict
 from datetime import date, datetime
 from itertools import groupby
-from typing import List
+from typing import Dict, List
 
 from odoo import _, api, fields, models
 
@@ -16,6 +18,17 @@ class AccountAssetAsset(models.Model):
 
     product_id = fields.Many2one("product.product", string="Product")
     quantity = fields.Float(string="Quantity")
+
+    def create_asset(self, vals: List[Dict]):
+        for val in vals:
+            changed_vals = self.onchange_category_id_values(val["category_id"])
+            changed_vals["value"]["method_end"] = val["method_end"]
+            val.update(changed_vals["value"])
+            asset = self.create(val)
+            if asset.category_id.open_asset:
+                if asset.date_first_depreciation == "last_day_period":
+                    asset.method_end = val["method_end"]
+                asset.validate()
 
     @api.model
     def _cron_generate_journal_entries(self):
@@ -66,7 +79,7 @@ class AccountAssetAsset(models.Model):
 
         self.update_depreciation_product_price(monthly_depreciation)
 
-    def get_product_depreciation(self, depreciation_ids: List):
+    def get_product_depreciation(self, depreciation_ids: List) -> Dict:
         monthly_depreciation = defaultdict(dict)
         for month, depreciations in groupby(
             sorted(
@@ -90,9 +103,24 @@ class AccountAssetAsset(models.Model):
 
         return monthly_depreciation
 
-    def update_depreciation_product_price(self, monthly_depreciation: dict):
-        product_value = self.env["product.value"]
+    def update_product_price(self, product: models.Model, price: float):
+        self.env["product.value"].sudo().create(
+            ProductValue(
+                product_id=product.id,
+                value=price,
+                company_id=product.company_id.id or self.env.company.id,
+                date=fields.Datetime.now(),
+                description=_(
+                    "Depreciation price update from %(old_price)s to %(new_price)s by %(user)s",
+                    old_price=product.standard_price,
+                    new_price=price,
+                    user=self.env.user.name,
+                ),
+            ).__dict__
+        )
 
+    def update_depreciation_product_price(self, monthly_depreciation: Dict):
+        product_value = self.env["product.value"]
         for month, product_depreciation in monthly_depreciation.items():
             _logger.info(f"month {month}")
             products = []
@@ -123,6 +151,7 @@ class AccountAssetAsset(models.Model):
                         ),
                     ).__dict__
                 )
+                self.update_product_price(product, price)
                 products.append(product.id)
                 _logger.info("Updated product price for depreciation.")
 
