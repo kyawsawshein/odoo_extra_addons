@@ -12,6 +12,7 @@ class AccountMove(models.Model):
 class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
 
+    # pylint: disable=W0201
     @api.model
     def default_get(self, fields):
         res = super().default_get(fields)

@@ -1,0 +1,85 @@
+[MASTER]
+# Add the Odoo framework and your custom addons to the Python path.
+# Make sure to replace the paths with the correct ones for your system.
+# The first path should be the directory containing the main 'odoo' directory.
+# The second path is for your custom addons.
+init-hook='
+ import sys;
+ sys.path.append("c:\\Users\\ichill shop\\JO\\ERP\\Odoo19\\odoo");
+ sys.path.append("c:\\Users\\ichill shop\\JO\\ERP\\Odoo19\\odoo_extra_addons");
+ sys.path.append("c:\\Users\\ichill shop\\JO\\ERP\\Odoo19\\vendor_addons");
+ '
+
+[REPORTS]
+output-format=colorized
+
+[MESSAGES CONTROL]
+# You can disable specific warnings here if you wish.
+# For example, to disable warnings about missing docstrings:
+# disable=missing-docstring
+disable=
+    missing-module-docstring,
+    missing-class-docstring,
+    missing-function-docstring
+
+
+# Paths to ignore
+ignore=CVS,.git,__pycache__,build,dist,odoo,tests
+ignore-patterns=__init__.py
+
+# Allow loading of Odoo specific checkers (if using pylint-odoo)
+load-plugins=pylint_odoo
+
+[MESSAGES CONTROL]
+# Disable some errors that are noisy in Odoo context
+disable=
+    C0114, # missing-module-docstring
+    C0115, # missing-class-docstring
+    C0116, # missing-function-docstring
+    R0801, # duplicate-code
+    W0511, # fixme (TODO comments)
+    R0903, # too-few-public-methods (common in Odoo models)
+    R0902, # too-many-instance-attributes
+    R0913, # too-many-arguments (Odoo methods often have many)
+    R0914, # too-many-locals
+    R0915, # too-many-statements
+    C0103, # invalid-name (Odoo allows camelCase in some cases)
+    W0703, # broad-except
+    C0411, # wrong-import-order
+    W1203, # logging-fstring-interpolation (Odoo uses %s)
+    C0330, # bad-continuation (pylint formatting conflict)
+    W0104, # Statement seems to have no effect (pointless-statement)
+    W0223, # Method 'onchange' is abstract in class 'BaseModel' but is not overridden in child class 'SuccessMessage' (abstract-method)
+    E0401,
+
+[REPORTS]
+output-format=colorized
+reports=no
+score=no
+
+[BASIC]
+good-names=i,j,k,_,id,db,odoo,env,uid,ids
+
+[FORMAT]
+max-line-length=130
+
+[DESIGN]
+max-args=10
+max-locals=20
+max-returns=10
+max-branches=15
+max-statements=80
+max-parents=7
+max-attributes=15
+
+[TYPECHECK]
+generated-members=fields.*,models.*,api.*,self.env
+
+[ODOO]
+# Odoo-specific options (if pylint-odoo installed)
+odoo-rcfile=.pylintrc
+odoo-licence=LGPL-3
+odoo-max-line-length=100
+odoo-method-required-super=__init__,create,write,unlink
+
+--rcfile=c:\Users\ichill shop\JO\ERP\Odoo19\.pylintrc
