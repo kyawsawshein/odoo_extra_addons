@@ -19,15 +19,16 @@ class AccountAssetAsset(models.Model):
     product_id = fields.Many2one("product.product", string="Product")
     quantity = fields.Float(string="Quantity")
 
-    def create_asset(self, vals: List[Dict]):
+    def create_asset(self, vals: List[Dict], end_date: str = None):
         for val in vals:
             changed_vals = self.onchange_category_id_values(val["category_id"])
-            changed_vals["value"]["method_end"] = val["method_end"]
             val.update(changed_vals["value"])
+            if end_date:
+                val["method_end"] = end_date
             asset = self.create(val)
             if asset.category_id.open_asset:
                 if asset.date_first_depreciation == "last_day_period":
-                    asset.method_end = val["method_end"]
+                    asset.method_end = end_date
                 asset.validate()
 
     @api.model

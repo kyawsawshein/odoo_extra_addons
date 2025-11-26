@@ -33,6 +33,9 @@ class StockMove(models.Model):
         vals = []
         asset_categ = self.product_id.asset_category_id
         lines = self.move_line_ids
+        end_date = None
+        if lines[:1].expiration_date:
+            end_date = lines[:1].expiration_date.strftime(DEFAULT_SERVER_DATE_FORMAT)
         vals.append(
             Assets(
                 name=self.product_id.name,
@@ -44,14 +47,9 @@ class StockMove(models.Model):
                 partner_id=self.picking_id.partner_id.id,
                 company_id=self.company_id.id,
                 date=self.date.strftime(DEFAULT_SERVER_DATE_FORMAT),
-                date_first_depreciation="last_day_period",
-                method_end=lines[:1].expiration_date.strftime(
-                    DEFAULT_SERVER_DATE_FORMAT
-                ),
-                method_time="end",
             ).__dict__
         )
-        self.env["account.asset.asset"].create_asset(vals)
+        self.env["account.asset.asset"].create_asset(vals, end_date)
 
     def get_remove_value(self, assets: List, asset_qty: float) -> Dict:
         remove_assets = defaultdict(dict)
