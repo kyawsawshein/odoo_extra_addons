@@ -33,23 +33,23 @@ class StockMove(models.Model):
         vals = []
         asset_categ = self.product_id.asset_category_id
         lines = self.move_line_ids
-        end_date = None
-        if lines[:1].expiration_date:
+
+        if asset_categ and lines[:1].expiration_date:
             end_date = lines[:1].expiration_date.strftime(DEFAULT_SERVER_DATE_FORMAT)
-        vals.append(
-            Assets(
-                name=self.product_id.name,
-                code=self.picking_id.name or False,
-                product_id=self.product_id.id,
-                quantity=self.quantity,
-                category_id=asset_categ.id,
-                value=self.value,
-                partner_id=self.picking_id.partner_id.id,
-                company_id=self.company_id.id,
-                date=self.date.strftime(DEFAULT_SERVER_DATE_FORMAT),
-            ).__dict__
-        )
-        self.env["account.asset.asset"].create_asset(vals, end_date)
+            vals.append(
+                Assets(
+                    name=self.product_id.name,
+                    code=self.picking_id.name or False,
+                    product_id=self.product_id.id,
+                    quantity=self.quantity,
+                    category_id=asset_categ.id,
+                    value=self.value,
+                    partner_id=self.picking_id.partner_id.id,
+                    company_id=self.company_id.id,
+                    date=self.date.strftime(DEFAULT_SERVER_DATE_FORMAT),
+                ).__dict__
+            )
+            self.env["account.asset.asset"].create_asset(vals, end_date)
 
     def get_remove_value(self, assets: List, asset_qty: float) -> Dict:
         remove_assets = defaultdict(dict)
