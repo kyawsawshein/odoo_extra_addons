@@ -60,8 +60,9 @@ class AccountAssetAsset(models.Model):
         for grouped_category in self.env["account.asset.category"].search(
             category_domain
         ):
-            domain.append(("category_id", "=", grouped_category.id))
-            assets = self.env["account.asset.asset"].search(domain)
+            assets = self.env["account.asset.asset"].search(
+                domain + [("category_id", "=", grouped_category.id)]
+            )
             assets._compute_journal_entries(depreciation_date, group_entries=True)
 
     def _compute_journal_entries(self, depreciation_date: date, group_entries=False):
@@ -97,9 +98,8 @@ class AccountAssetAsset(models.Model):
             ):
                 _logger.info(f"product {product.name}")
                 for line in lines:
-                    product_depreciation[product] += (
-                        line.amount / line.asset_id.quantity or 1
-                    )
+                    product_depreciation[product] += line.amount
+
             monthly_depreciation[month] = product_depreciation
 
         return monthly_depreciation
@@ -121,7 +121,6 @@ class AccountAssetAsset(models.Model):
         )
 
     def update_depreciation_product_price(self, monthly_depreciation: Dict):
-        product_value = self.env["product.value"]
         for month, product_depreciation in monthly_depreciation.items():
             _logger.info(f"month {month}")
             products = []
@@ -138,20 +137,6 @@ class AccountAssetAsset(models.Model):
                 price = product.standard_price - (value / quantity or 1)
                 _logger.info(f"Product {product.name} price {price}")
 
-                product_value.sudo().create(
-                    ProductValue(
-                        product_id=product.id,
-                        value=price,
-                        company_id=product.company_id.id or self.env.company.id,
-                        date=fields.Datetime.now(),
-                        description=_(
-                            "Depreciation price update from %(old_price)s to %(new_price)s by %(user)s",
-                            old_price=product.standard_price,
-                            new_price=price,
-                            user=self.env.user.name,
-                        ),
-                    ).__dict__
-                )
                 self.update_product_price(product, price)
                 products.append(product.id)
                 _logger.info("Updated product price for depreciation.")
