@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_category_property_form_account_asset" model="ir.ui.view">
+        <field name="name">product.category.property.form.inherit.asset</field>
+        <field name="model">product.category</field>
+        <field name="inherit_id" ref="stock_account.view_category_property_form"/>
+        <field name="arch" type="xml">
+            <field name="account_stock_variation_id" position="after">
+                <field name="property_stock_journal"/>
+            </field>
+        </field>
+    </record>
+</odoo>

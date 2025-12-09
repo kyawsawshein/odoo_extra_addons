@@ -45,6 +45,12 @@ class MrpBom(models.Model):
         currency_field="currency_id",
         help="Total cost of the BOM based on the\n" " raw materials cost",
     )
+    operation_cost = fields.Monetary(
+        string="Operatin Cost",
+        compute="_compute_bom_cost",
+        currency_field="currency_id",
+        help="Total cost of the operation.",
+    )
 
     @api.depends("bom_line_ids.product_id", "product_qty")
     def _compute_bom_cost(self):
@@ -52,4 +58,13 @@ class MrpBom(models.Model):
         for rec in self:
             cost_mapp = rec.bom_line_ids.mapped("cost")
             rec.bom_cost = sum(cost_mapp)
-            rec.total_bom_cost = rec.bom_cost * rec.product_qty
+
+            product = self.product_id or self.product_tmpl_id.product_variant_id
+            qty = self.product_qty
+            for operation in self.operation_ids:
+                if not product or operation._skip_operation_line(product):
+                    continue
+                op = operation.with_context(product=product, quantity=qty)
+                rec.operation_cost += self.env.company.currency_id.round(op.cost)
+
+            rec.total_bom_cost = (rec.bom_cost + rec.operation_cost) * rec.product_qty

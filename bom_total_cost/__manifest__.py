@@ -20,24 +20,25 @@
 #
 #############################################################################
 {
-    'name': 'Show Total Cost on BOM',
-    'version': '19.0.1.0.0',
-    'category': "Manufacturing",
-    'summary': """The Total Cost of BOM Based on the Raw Materials Cost 
+    "name": "Show Total Cost on BOM",
+    "version": "19.0.1.0.0",
+    "category": "Manufacturing",
+    "summary": """The Total Cost of BOM Based on the Raw Materials Cost
      Price. """,
-    'description': """This Module Helps to Show the Total cost per Unit and 
+    "description": """This Module Helps to Show the Total cost per Unit and
      Total Cost of a BOM Based on the Components Cost price.""",
-    'author': 'Cybrosys Techno Solutions',
-    'company': 'Cybrosys Techno Solutions',
-    'maintainer': 'Cybrosys Techno Solutions',
-    'website': 'https://www.cybrosys.com',
-    'depends': ['mrp'],
-    'data': [
-        'views/bom_cost_views.xml'
+    "author": "Cybrosys Techno Solutions",
+    "company": "Cybrosys Techno Solutions",
+    "maintainer": "Cybrosys Techno Solutions",
+    "website": "https://www.cybrosys.com",
+    "depends": ["mrp"],
+    "data": [
+        "views/bom_cost_views.xml",
+        "views/mrp_production_views.xml",
     ],
-    'images': ['static/description/banner.jpg'],
-    'license': 'AGPL-3',
-    'installable': True,
-    'auto_install': False,
-    'application': False,
+    "images": ["static/description/banner.jpg"],
+    "license": "AGPL-3",
+    "installable": True,
+    "auto_install": False,
+    "application": False,
 }
