@@ -19,7 +19,11 @@
 #    If not, see <http://www.gnu.org/licenses/>.
 #
 #############################################################################
+import logging
+
 from odoo import models
+
+_logger = logging.getLogger(__name__)
 
 
 class MrpWorkorder(models.Model):
@@ -38,30 +42,29 @@ class MrpWorkorder(models.Model):
             "manufacture_process_costing.process_costing_method"
         )
         if process_value == "work-center":
-            for rec in self.production_id.labour_cost_ids:
-                for val in self:
-                    if rec.operation == val.name:
-                        labour_id = rec.id
-                        self.production_id.write(
-                            {
-                                "labour_cost_ids": [
-                                    (1, labour_id, {"actual_minute": rec.duration})
-                                    for rec in self
-                                ]
-                            }
-                        )
-            for rec in self.production_id.overhead_cost_ids:
-                for val in self:
-                    if rec.operation == val.name:
-                        overhead_id = rec.id
-                        self.production_id.write(
-                            {
-                                "overhead_cost_ids": [
-                                    (1, overhead_id, {"actual_minute": rec.duration})
-                                    for rec in self
-                                ]
-                            }
-                        )
+            for labour in self.production_id.labour_cost_ids.filtered(
+                lambda l: l.work_center_id == self.workcenter_id
+            ):
+                self.production_id.write(
+                    {
+                        "labour_cost_ids": [
+                            (1, labour.id, {"actual_minute": rec.duration})
+                            for rec in self
+                        ]
+                    }
+                )
+
+            for overhead in self.production_id.overhead_cost_ids.filtered(
+                lambda l: l.work_center_id == self.workcenter_id
+            ):
+                self.production_id.write(
+                    {
+                        "overhead_cost_ids": [
+                            (1, overhead.id, {"actual_minute": rec.duration})
+                            for rec in self
+                        ]
+                    }
+                )
             self.production_id.write(
                 {
                     "material_cost_ids": [
@@ -70,4 +73,35 @@ class MrpWorkorder(models.Model):
                     ]
                 }
             )
+        return res
+
+    def _get_actual_labour_cost(self) -> float:
+        cost = 0.0
+        for labour in self.production_id.labour_cost_ids.filtered(
+            lambda l: l.work_center_id == self.workcenter_id
+        ):
+            cost = labour.total_actual_cost
+        return cost
+
+    def _get_actual_overhead_cost(self) -> float:
+        cost = 0.0
+        for overhead in self.production_id.overhead_cost_ids.filtered(
+            lambda l: l.work_center_id == self.workcenter_id
+        ):
+            cost = overhead.total_actual_cost
+        return cost
+
+    def _get_actual_material_cost(self) -> float:
+        return self.production_id.total_actual_material_cost / (
+            len(self.production_id.workorder_ids) or 1
+        )
+
+    def _cal_cost(self):
+        """Super the _cal_cost in workorder and update the
+        actual_minute and actual_quantity of labour_cost_ids,
+        overhead_cost_ids, material_cost_ids according to the settings value"""
+        res = super()._cal_cost()
+        res += self._get_actual_labour_cost()
+        res += self._get_actual_overhead_cost()
+        res += self._get_actual_material_cost()
         return res

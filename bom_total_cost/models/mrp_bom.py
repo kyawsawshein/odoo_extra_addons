@@ -68,3 +68,6 @@ class MrpBom(models.Model):
                 rec.operation_cost += self.env.company.currency_id.round(op.cost)
 
             rec.total_bom_cost = (rec.bom_cost + rec.operation_cost) * rec.product_qty
+            rec.total_bom_cost += self.total_material_cost
+            rec.total_bom_cost += self.total_labour_cost
+            rec.total_bom_cost += self.total_overhead_cost

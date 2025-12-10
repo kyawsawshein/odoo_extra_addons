@@ -31,7 +31,7 @@
     "company": "Cybrosys Techno Solutions",
     "maintainer": "Cybrosys Techno Solutions",
     "website": "https://www.cybrosys.com",
-    "depends": ["mrp"],
+    "depends": ["manufacture_process_costing"],
     "data": [
         "views/bom_cost_views.xml",
         "views/mrp_production_views.xml",

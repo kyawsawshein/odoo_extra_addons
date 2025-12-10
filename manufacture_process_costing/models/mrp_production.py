@@ -20,6 +20,7 @@
 #
 #############################################################################
 from odoo import api, fields, models
+from odoo.tools import float_round, format_datetime
 
 
 class MrpProduction(models.Model):
@@ -69,7 +70,7 @@ class MrpProduction(models.Model):
     )
     total_actual_labour_cost = fields.Float(
         string="Total Actual Labour Cost",
-        compute="_compute_total_actual_" "labour_cost",
+        compute="_compute_total_actual_labour_cost",
         store=True,
         help="Total Actual Labour Cost " "of production",
     )
