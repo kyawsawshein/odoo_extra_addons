@@ -16,7 +16,7 @@
         "wizard/asset_depreciation_journal_wizard_views.xml",
         "wizard/asset_modify_views.xml",
         "views/account_asset_views.xml",
-        "views/product_category_views.xml",
+        # "views/product_category_views.xml",
     ],
     "assets": {},
 }

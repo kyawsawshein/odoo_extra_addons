@@ -36,7 +36,7 @@ class MrpWorkorder(models.Model):
         """Super the button_finish button in workorder and update the
         actual_minute and actual_quantity of labour_cost_ids,
         overhead_cost_ids, material_cost_ids according to the settings value"""
-        res = super(MrpWorkorder, self).button_finish()
+        res = super().button_finish()
         process = self.env["ir.config_parameter"].sudo()
         process_value = process.get_param(
             "manufacture_process_costing.process_costing_method"
