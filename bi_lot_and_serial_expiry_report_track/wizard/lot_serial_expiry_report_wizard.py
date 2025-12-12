@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 # Part of BrowseInfo. See LICENSE file for full copyright and licensing details.
 import logging
-from datetime import datetime, time, timedelta
 from typing import List
+from datetime import datetime, timedelta, time
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
+
 
 _logger = logging.getLogger(__name__)
 
@@ -50,7 +51,9 @@ class LotSerialExpiryReportWizard(models.TransientModel):
             "lot_serial_number": rec.name,
             "product_name": rec.product_id.name,
             "product_expiry_date": rec.expiration_date.date(),
-            "product_expire_within": str(rec.expiration_date.date() - today.date()),
+            "product_expire_within": str(
+                (rec.expiration_date.date() - today.date()).days
+            ),
             "product_qty": rec.product_qty,
         }
         product_list.append(vals_dict)
