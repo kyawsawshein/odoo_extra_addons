@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 # Part of BrowseInfo. See LICENSE file for full copyright and licensing details.
 import logging
+from datetime import datetime, time, timedelta
 from typing import List
-from datetime import datetime, timedelta, time
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
-
 
 _logger = logging.getLogger(__name__)
 

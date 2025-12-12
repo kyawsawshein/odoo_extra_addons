@@ -23,6 +23,8 @@ import logging
 
 from odoo import models
 
+from ..datamodels.datamodel import CostMethod
+
 _logger = logging.getLogger(__name__)
 
 
@@ -41,30 +43,28 @@ class MrpWorkorder(models.Model):
         process_value = process.get_param(
             "manufacture_process_costing.process_costing_method"
         )
-        if process_value == "work-center":
-            for labour in self.production_id.labour_cost_ids.filtered(
-                lambda l: l.work_center_id == self.workcenter_id
-            ):
-                self.production_id.write(
-                    {
-                        "labour_cost_ids": [
-                            (1, labour.id, {"actual_minute": rec.duration})
-                            for rec in self
-                        ]
-                    }
-                )
-
-            for overhead in self.production_id.overhead_cost_ids.filtered(
-                lambda l: l.work_center_id == self.workcenter_id
-            ):
-                self.production_id.write(
-                    {
-                        "overhead_cost_ids": [
-                            (1, overhead.id, {"actual_minute": rec.duration})
-                            for rec in self
-                        ]
-                    }
-                )
+        if process_value == CostMethod.WORK_CENTER.code:
+            for workorder in self:
+                for labour in workorder.production_id.labour_cost_ids.filtered(
+                    lambda l: l.work_center_id == workorder.workcenter_id
+                ):
+                    workorder.production_id.write(
+                        {
+                            "labour_cost_ids": [
+                                (1, labour.id, {"actual_minute": workorder.duration})
+                            ]
+                        }
+                    )
+                for overhead in workorder.production_id.overhead_cost_ids.filtered(
+                    lambda l: l.work_center_id == workorder.workcenter_id
+                ):
+                    workorder.production_id.write(
+                        {
+                            "overhead_cost_ids": [
+                                (1, overhead.id, {"actual_minute": workorder.duration})
+                            ]
+                        }
+                    )
             self.production_id.write(
                 {
                     "material_cost_ids": [

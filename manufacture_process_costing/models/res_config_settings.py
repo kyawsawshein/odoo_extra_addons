@@ -21,6 +21,8 @@
 #############################################################################
 from odoo import fields, models
 
+from ..datamodels.datamodel import CostMethod
+
 
 class ResConfigSettings(models.TransientModel):
     """This class extends the 'res.config.settings' model to add a custom
@@ -29,8 +31,8 @@ class ResConfigSettings(models.TransientModel):
     _inherit = "res.config.settings"
 
     process_costing_method = fields.Selection(
-        selection=[("manually", "Manually"), ("work-center", "Work Center")],
-        default="manually",
+        selection=CostMethod.get_list(),
+        default=CostMethod.MANUAL.code,
         string="Process Costing Method",
         config_parameter="manufacture_process_costing.process_costing_method",
         help="How to compute process costing, whether manually or work " "center based",
