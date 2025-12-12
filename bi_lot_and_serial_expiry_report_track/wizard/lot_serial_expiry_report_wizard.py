@@ -1,9 +1,13 @@
 # -*- coding: utf-8 -*-
 # Part of BrowseInfo. See LICENSE file for full copyright and licensing details.
+import logging
+from datetime import datetime, time, timedelta
+from typing import List
 
-from odoo import api, fields, models, _
-from datetime import datetime, timedelta
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
+
+_logger = logging.getLogger(__name__)
 
 
 class LotSerialExpiryReportWizard(models.TransientModel):
@@ -22,12 +26,34 @@ class LotSerialExpiryReportWizard(models.TransientModel):
         default="product_wise",
     )
 
+    def _get_expiration_domain(self) -> List:
+        today = datetime.combine(datetime.today(), time.max)
+        today_date = datetime.strftime(today, "%Y-%m-%d")
+        days_within = today + timedelta(days=int(self.expire_within))
+        return [
+            ("expiration_date", "!=", False),
+            ("product_qty", ">", 0),
+            ("expiration_date", ">", today_date),
+            ("expiration_date", "<=", days_within),
+        ]
+
     @api.onchange("selection_report")
     def onchange_lot_serial_wise(self):
+        domain = self._get_expiration_domain()
         if self.selection_report == "lot_wise":
-            stock_production_lot_obj = self.env["stock.lot"].search([])
+            stock_production_lot_obj = self.env["stock.lot"].search(domain)
             self.lot_serial_ids = stock_production_lot_obj
             self.product_ids = False
+
+    def expiration_date(self, rec, product_list: List, today: datetime):
+        vals_dict = {
+            "lot_serial_number": rec.name,
+            "product_name": rec.product_id.name,
+            "product_expiry_date": rec.expiration_date.date(),
+            "product_expire_within": str(rec.expiration_date.date() - today.date()),
+            "product_qty": rec.product_qty,
+        }
+        product_list.append(vals_dict)
 
     def action_expiry_report(self):
         product_list = []
@@ -36,100 +62,29 @@ class LotSerialExpiryReportWizard(models.TransientModel):
         )
 
         if ir_module_module_obj:
-            today = datetime.strftime(datetime.today(), "%Y-%m-%d")
-            days_within = datetime.strftime(
-                (datetime.today() + timedelta(days=int(self.expire_within))), "%Y-%m-%d"
-            )
+            today = datetime.today()
+            if self.expire_within > 0:
+                if self.selection_report == "product_wise":
+                    domain = self._get_expiration_domain()
+                    domain.append(("product_id", "in", self.product_ids.ids))
+                    for rec in self.env["stock.lot"].search(domain):
+                        self.expiration_date(rec, product_list, today)
 
-            if self.selection_report == "product_wise":
-                if self.expire_within > 0:
-                    for record in self.product_ids:
-                        stock_production_lot_obj = self.env["stock.lot"].search(
-                            [("product_id", "=", record.id)]
-                        )
-                        for rec in stock_production_lot_obj:
-                            if rec.expiration_date:
-                                stock_lot_date = rec.filtered(
-                                    lambda x: str(x.expiration_date) >= today
-                                )
-                                for rec in stock_lot_date:
-                                    if str(rec.expiration_date.date()) <= days_within:
-                                        vals_dict = {}
-                                        vals_dict.update(
-                                            {
-                                                "lot_serial_number": rec.name,
-                                                "product_name": rec.product_id.name,
-                                                "product_expiry_date": rec.expiration_date.date(),
-                                                "product_expire_within": str(
-                                                    (
-                                                        datetime.strptime(
-                                                            str(
-                                                                rec.expiration_date.date()
-                                                            ),
-                                                            "%Y-%m-%d",
-                                                        )
-                                                        - datetime.strptime(
-                                                            today, "%Y-%m-%d"
-                                                        )
-                                                    ).days
-                                                ),
-                                                "product_qty": rec.product_qty,
-                                            }
-                                        )
-                                        product_list.append(vals_dict)
-                            else:
-                                raise ValidationError(
-                                    "Please go to Products --> Inventory Section --> Enable the By Lots Selection in Tracking Field --> Enable Expiration Date; After that Input the Expiration Date in Lots/Serial Numbers --> Dates Section"
-                                )
                     if not product_list:
                         raise UserError("No record found for this selected products.")
-                else:
-                    raise UserError("Please enter positive number.")
 
-            if self.selection_report == "lot_wise":
-                if self.expire_within > 0:
-                    for rec in self.lot_serial_ids:
-                        if rec.expiration_date:
-                            stock_production_lot_obj = (
-                                self.env["stock.lot"].browse([rec]).id
-                            )
-                            stock_lot_date = stock_production_lot_obj.filtered(
-                                lambda x: str(x.expiration_date) >= today
-                            )
-                            for rec in stock_lot_date:
-                                if str(rec.expiration_date.date()) <= days_within:
-                                    vals_dict = {}
-                                    vals_dict.update(
-                                        {
-                                            "lot_serial_number": rec.name,
-                                            "product_name": rec.product_id.name,
-                                            "product_expiry_date": rec.expiration_date.date(),
-                                            "product_expire_within": str(
-                                                (
-                                                    datetime.strptime(
-                                                        str(rec.expiration_date.date()),
-                                                        "%Y-%m-%d",
-                                                    )
-                                                    - datetime.strptime(
-                                                        today, "%Y-%m-%d"
-                                                    )
-                                                ).days
-                                            ),
-                                            "product_qty": rec.product_qty,
-                                        }
-                                    )
+                if self.selection_report == "lot_wise":
+                    domain = self._get_expiration_domain()
+                    domain.append(("id", "in", self.lot_serial_ids.ids))
+                    for rec in self.env["stock.lot"].search(domain):
+                        self.expiration_date(rec, product_list, today)
 
-                                    product_list.append(vals_dict)
-                            if not product_list:
-                                raise UserError(
-                                    "No record found for this selected lot/Serial numbers."
-                                )
-                        else:
-                            raise ValidationError(
-                                "Please go to Products --> Inventory Section --> Enable the By Lots Selection in Tracking Field --> Enable Expiration Date; After that Input the Expiration Date in Lots/Serial Numbers --> Dates Section"
-                            )
-                else:
-                    raise UserError("Please enter positive number.")
+                    if not product_list:
+                        raise UserError(
+                            "No record found for this selected lot/Serial numbers."
+                        )
+            else:
+                raise UserError("Please enter positive number.")
         else:
             raise ValidationError("Please Enable Settings --> Expiration Dates Option.")
 
