@@ -19,8 +19,8 @@
 #    If not, see <http://www.gnu.org/licenses/>.
 #
 #############################################################################
-from odoo import api, fields, models
-from odoo.tools import float_round, format_datetime
+from odoo import api, fields, models, _
+from odoo.exceptions import ValidationError
 
 
 class MrpProduction(models.Model):
@@ -236,3 +236,15 @@ class MrpProduction(models.Model):
                 + rec.total_actual_labour_cost
                 + rec.total_actual_overhead_cost
             )
+
+    def button_mark_done(self):
+        for workorder in self.workorder_ids:
+            if workorder.duration > workorder.duration_expected:
+                raise ValidationError(
+                    _(
+                        "Please check the work center %s duration are exeeced than expected duration.",
+                        workorder.name,
+                    )
+                )
+
+        return super().button_mark_done()
