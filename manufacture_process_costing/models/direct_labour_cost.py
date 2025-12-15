@@ -32,15 +32,6 @@ class DirectLabourCost(models.Model):
     _name = "direct.labour.cost"
     _description = "Direct Labour Cost"
 
-    def _compute_labour_workcenter_domain(self):
-        """Set domain for work_center_id based on production order."""
-        workcenter_ids = []
-        for workorder in self.production_labour_id.workorder_ids:
-            workcenter_ids.append(workorder.workcenter_id.id)
-        if workcenter_ids:
-            self.work_center_id = False
-        return {"domain": {"work_center_id": [("id", "in", workcenter_ids)]}}
-
     labour_cost_id = fields.Many2one(
         "mrp.bom", string="Labour Cost", help="Corresponding bill of materials"
     )
