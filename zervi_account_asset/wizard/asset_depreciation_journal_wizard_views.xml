@@ -11,7 +11,7 @@
                         This wizard will post installment/depreciation lines for the selected month.<br/>
                         This will generate journal entries for all related installment lines on this period
                         of asset/revenue recognition as well.
-                    </p> 
+                    </p>
                 </div>
                 <group>
                     <field name="date"/>
@@ -21,7 +21,7 @@
                     <button string="Cancel" class="btn-secondary" special="cancel"/>
                 </footer>
             </form>
-         </field>
+        </field>
     </record>
 
     <record id="action_asset_depreciation_journal_confirmation_wizard" model="ir.actions.act_window">
@@ -33,11 +33,10 @@
         <field name="context">{'asset_type': 'purchase'}</field>
     </record>
 
-    <menuitem id="menu_asset_depreciation_journal_confirmation_wizard"
-              name="Generate Assets Journal Entries"
-              action="action_asset_depreciation_journal_confirmation_wizard"
-              parent="om_account_asset.menu_finance_entries_generate_entries"
-              sequence="112"
-              groups="account.group_account_manager"/>
+    <record id="om_account_asset.menu_asset_depreciation_confirmation_wizard" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
+
+    <menuitem id="menu_asset_depreciation_journal_confirmation_wizard" name="Generate Assets Journal Entries" action="action_asset_depreciation_journal_confirmation_wizard" parent="om_account_asset.menu_finance_entries_generate_entries" sequence="112" groups="account.group_account_manager"/>
 
 </odoo>
