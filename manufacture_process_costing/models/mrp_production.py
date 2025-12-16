@@ -247,7 +247,7 @@ class MrpProduction(models.Model):
                 raise ValidationError(
                     _(
                         "Please check the work center %s duration are exeeced than expected duration.",
-                        workorder.name,
+                        workorder.workcenter_id.name,
                     )
                 )
 

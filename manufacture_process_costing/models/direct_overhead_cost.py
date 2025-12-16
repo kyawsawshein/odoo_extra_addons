@@ -32,6 +32,9 @@ class DirectOverheadCost(models.Model):
         "mrp.bom", string="Overhead Cost", help="Corresponding bill of materials"
     )
     operation = fields.Char(string="Operation", help="Operation required for the work")
+    workcenter_ids = fields.Many2many(
+        "mrp.workcenter", string="Work Centers", compute="_compute_workcenter"
+    )
     work_center_id = fields.Many2one(
         "mrp.workcenter", string="Work Center", help="Corresponding work center"
     )
@@ -70,3 +73,12 @@ class DirectOverheadCost(models.Model):
         """Calculate total_actual_cost based on actual_minute and cost_minute"""
         for rec in self:
             rec.total_actual_cost = rec.actual_minute * rec.cost_minute
+
+    @api.depends("overhead_cost_id.operation_ids.workcenter_id")
+    def _compute_workcenter(self):
+        for rec in self:
+            rec.workcenter_ids = (
+                rec.overhead_cost_id.operation_ids.mapped("workcenter_id")
+                if rec.overhead_cost_id
+                else [(5, 0, 0)]
+            )

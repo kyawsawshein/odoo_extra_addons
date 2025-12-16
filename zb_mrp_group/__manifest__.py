@@ -22,7 +22,9 @@
     "name": "MRP Group",
     "version": "19.0.0.0",
     "category": "Manufacturing",
-    "summary": "This module simplifies production management by organizing BOMs and MOs into groups, streamlining complex production processes. It helps identify and group multiple BOMs and MOs involved in producing a finished product, making production management more efficient.",
+    "summary": "This module simplifies production management by organizing BOMs and MOs into groups,"
+    " streamlining complex production processes. It helps identify and group multiple BOMs and"
+    "MOs involved in producing a finished product, making production management more efficient.",
     "website": "https://www.zbeanztech.com",
     "description": """
         This app will allow you to manage Manufacturing Group on "Manufacturing Order"..

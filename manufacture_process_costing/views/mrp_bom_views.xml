@@ -12,7 +12,7 @@
                 <page string="Material Cost" name="material_cost">
                     <field name="material_cost_ids">
                         <list editable="bottom">
-                            <field name="product_id"/>
+                            <field name="product_id" options="{'no_create': True}"/>
                             <field name="planned_qty"/>
                             <field name="uom_id"/>
                             <field name="cost_unit"/>
@@ -28,10 +28,10 @@
                 <page string="Labour Cost" name="labour_cost">
                     <field name="labour_cost_ids">
                         <list editable="bottom">
+                            <field name="workcenter_ids" invisible="1"/>
                             <field name="operation"/>
-                            <field name="work_center_id"/>
-                            <field name="planned_minute"
-                                   widget="float_time"/>
+                            <field name="work_center_id" domain="[('id','in', workcenter_ids)]" options="{'no_create': True}"/>
+                            <field name="planned_minute" widget="float_time"/>
                             <field name="cost_minute"/>
                             <field name="total_cost"/>
                         </list>
@@ -45,10 +45,10 @@
                 <page string="Overhead Cost" name="overhead_cost">
                     <field name="overhead_cost_ids">
                         <list editable="bottom">
+                            <field name="workcenter_ids" invisible="1"/>
                             <field name="operation"/>
-                            <field name="work_center_id"/>
-                            <field name="planned_minute"
-                                   widget="float_time"/>
+                            <field name="work_center_id" domain="[('id','in', workcenter_ids)]" options="{'no_create': True}"/>
+                            <field name="planned_minute" widget="float_time"/>
                             <field name="cost_minute"/>
                             <field name="total_cost"/>
                         </list>
