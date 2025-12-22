@@ -6,8 +6,8 @@
             <field name="model">product.category</field>
             <field name="inherit_id" ref="stock_account.view_category_property_form"/>
             <field name="arch" type="xml">
-                <field name="account_stock_variation_id" position="after">
-                    <field name="property_stock_journal"/>
+                <field name="property_stock_valuation_account_id" position="after">
+                    <field name="property_stock_journal" options="{'no_create': True}"/>
                 </field>
             </field>
         </record>
