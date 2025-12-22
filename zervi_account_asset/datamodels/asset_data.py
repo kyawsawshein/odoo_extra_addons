@@ -16,6 +16,12 @@ class EnumBase(Enum):
         return self.value[1]
 
 
+class State(EnumBase):
+    DRAFT = ("draft", "Draft")
+    OPEN = ("open", "Running")
+    CLOSE = ("close", "Close")
+
+
 class MethodTime(EnumBase):
     NUMBER = ("number", "Number of Entries")
     END = ("end", "Ending Date")

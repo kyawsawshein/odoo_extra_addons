@@ -8,6 +8,7 @@ from typing import Dict, List
 
 from odoo import _, api, fields, models
 
+from ..datamodels.asset_data import State
 from ..datamodels.product_data import ProductValue
 
 _logger = logging.getLogger(__name__)
@@ -48,7 +49,7 @@ class AccountAssetAsset(models.Model):
 
     def asset_ungroup_depreciation(self, depreciation_date: date, type_domain: List):
         domain = type_domain + [
-            ("state", "=", "open"),
+            ("state", "=", State.OPEN.code),
             ("category_id.group_entries", "=", False),
         ]
         ungrouped_assets = self.env["account.asset.asset"].search(domain)
@@ -56,7 +57,7 @@ class AccountAssetAsset(models.Model):
 
     def asset_group_depreciation(self, depreciation_date: date, type_domain: List):
         category_domain = type_domain + [("group_entries", "=", True)]
-        domain = type_domain + [("state", "=", "open")]
+        domain = type_domain + [("state", "=", State.OPEN.code)]
         for grouped_category in self.env["account.asset.category"].search(
             category_domain
         ):
@@ -78,6 +79,11 @@ class AccountAssetAsset(models.Model):
             depreciation_ids.create_grouped_move()
         else:
             depreciation_ids.create_move()
+
+        # we re-evaluate the assets to determine if we can close them
+        for asset in self:
+            if asset.currency_id.is_zero(asset.value_residual):
+                asset.state = State.CLOSE.code
 
         self.update_depreciation_product_price(monthly_depreciation)
 

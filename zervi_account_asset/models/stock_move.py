@@ -8,7 +8,7 @@ from odoo import _, models
 from odoo.exceptions import UserError
 from odoo.tools.misc import DEFAULT_SERVER_DATE_FORMAT
 
-from ..datamodels.asset_data import Assets
+from ..datamodels.asset_data import Assets, State
 
 _logger = logging.getLogger(__name__)
 
@@ -73,7 +73,7 @@ class StockMove(models.Model):
     def update_assets(self):
         domain = [
             ("product_id", "=", self.product_id.id),
-            ("state", "=", "open"),
+            ("state", "=", State.OPEN.code),
             ("type", "=", "purchase"),
             ("category_id", "=", self.product_id.asset_category_id.id),
             ("quantity", ">", 0),
