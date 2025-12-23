@@ -105,3 +105,7 @@ class MrpWorkorder(models.Model):
         res += self._get_actual_overhead_cost()
         res += self._get_actual_material_cost()
         return res
+
+    def rpc_button_start(self, raise_on_invalid_state=False):
+        super().button_start(raise_on_invalid_state)
+        return True

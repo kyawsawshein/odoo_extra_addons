@@ -46,6 +46,7 @@
         "views/mrp_bom_views.xml",
         "views/mrp_production_views.xml",
         "views/mrp_workcenter_views.xml",
+        "views/mrp_workorder_views.xml",
         "views/mrp_cancel_reason_views.xml",
         "report/mrp_bom_cost_reports.xml",
         "report/mrp_bom_cost_report_templates.xml",

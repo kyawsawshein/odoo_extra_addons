@@ -29,13 +29,15 @@ class LotSerialExpiryReportWizard(models.TransientModel):
     def _get_expiration_domain(self) -> List:
         today = datetime.combine(datetime.today(), time.max)
         today_date = datetime.strftime(today, "%Y-%m-%d")
-        days_within = today + timedelta(days=int(self.expire_within))
-        return [
+        domain = [
             ("expiration_date", "!=", False),
             ("product_qty", ">", 0),
             ("expiration_date", ">", today_date),
-            ("expiration_date", "<=", days_within),
         ]
+        if self.expire_within:
+            days_within = today + timedelta(days=int(self.expire_within))
+            domain.append(("expiration_date", "<=", days_within))
+        return domain
 
     @api.onchange("selection_report")
     def onchange_lot_serial_wise(self):
@@ -65,28 +67,25 @@ class LotSerialExpiryReportWizard(models.TransientModel):
 
         if ir_module_module_obj:
             today = datetime.today()
-            if self.expire_within > 0:
-                if self.selection_report == "product_wise":
-                    domain = self._get_expiration_domain()
-                    domain.append(("product_id", "in", self.product_ids.ids))
-                    for rec in self.env["stock.lot"].search(domain):
-                        self.expiration_date(rec, product_list, today)
+            if self.selection_report == "product_wise":
+                domain = self._get_expiration_domain()
+                domain.append(("product_id", "in", self.product_ids.ids))
+                for rec in self.env["stock.lot"].search(domain):
+                    self.expiration_date(rec, product_list, today)
 
-                    if not product_list:
-                        raise UserError("No record found for this selected products.")
+                if not product_list:
+                    raise UserError("No record found for this selected products.")
 
-                if self.selection_report == "lot_wise":
-                    domain = self._get_expiration_domain()
-                    domain.append(("id", "in", self.lot_serial_ids.ids))
-                    for rec in self.env["stock.lot"].search(domain):
-                        self.expiration_date(rec, product_list, today)
+            if self.selection_report == "lot_wise":
+                domain = self._get_expiration_domain()
+                domain.append(("id", "in", self.lot_serial_ids.ids))
+                for rec in self.env["stock.lot"].search(domain):
+                    self.expiration_date(rec, product_list, today)
 
-                    if not product_list:
-                        raise UserError(
-                            "No record found for this selected lot/Serial numbers."
-                        )
-            else:
-                raise UserError("Please enter positive number.")
+                if not product_list:
+                    raise UserError(
+                        "No record found for this selected lot/Serial numbers."
+                    )
         else:
             raise ValidationError("Please Enable Settings --> Expiration Dates Option.")
 
