@@ -40,6 +40,10 @@
                             <field name="picking_type_consume" readonly="state!='draft'" />
                             <field name="picking_type_receipt_production" readonly="state!='draft'" />
                         </group>
+                        <group>
+                            <field name="location_src_id" readonly="state!='draft'" />
+                            <field name="location_dest_id" readonly="state!='draft'" />
+                        </group>
                     </group>
 
                     <div class="o_row">
@@ -49,6 +53,7 @@
                                 <list editable="bottom">
                                     <field name="product_id" />
                                     <field name="stock" />
+                                    <field name="location_qty"/>
                                     <field name="quantity" sum="1" />
                                     <field name="price_unit" readonly="1" force_save="1" />
                                     <field name="uom_id" />

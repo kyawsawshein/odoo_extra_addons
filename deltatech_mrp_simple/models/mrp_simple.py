@@ -31,11 +31,29 @@ class MRPSimple(models.Model):
     picking_type_receipt_production = fields.Many2one(
         "stock.picking.type", string="Picking type receipt", required=True
     )
+    location_src_id = fields.Many2one(
+        "stock.location", string="Source Location", domain=[("usage", "=", "internal")]
+    )
+    location_dest_id = fields.Many2one(
+        "stock.location",
+        string="Destination Location",
+        domain=[("usage", "=", "internal")],
+    )
 
     date = fields.Date(string="Date", default=fields.Date.today, required=True)
 
     validation_consume = fields.Boolean()
     validation_receipt = fields.Boolean(default=True)
+
+    @api.onchange("picking_type_consume")
+    def onchange_location(self):
+        self.location_src_id = self.picking_type_consume.default_location_src_id
+
+    @api.onchange("picking_type_receipt_production")
+    def onchange_location_dest(self):
+        self.location_dest_id = (
+            self.picking_type_receipt_production.default_location_dest_id
+        )
 
     def do_transfer(self):
         self.compute_finit_price()
@@ -49,6 +67,7 @@ class MRPSimple(models.Model):
             .create(
                 {
                     "picking_type_id": picking_type_receipt_production.id,
+                    "location_dest_id": self.location_dest_id.id,
                     "date_done": self.date,
                 }
             )
@@ -59,7 +78,11 @@ class MRPSimple(models.Model):
             self.env["stock.picking"]
             .with_context(**context)
             .create(
-                {"picking_type_id": picking_type_consume.id, "date_done": self.date}
+                {
+                    "picking_type_id": picking_type_consume.id,
+                    "location_id": self.location_src_id.id,
+                    "date_done": self.date,
+                }
             )
         )
 
@@ -95,28 +118,28 @@ class MRPSimple(models.Model):
         self.write({"state": "done"})
         return self
 
-    def add_picking_line(self, picking, product, quantity, uom, price_unit):
+    def add_picking_line(self, picking, line, location_id, location_dest_id):
         move = self.env["stock.move"].search(
             [
                 ("picking_id", "=", picking.id),
-                ("product_id", "=", product.id),
-                ("product_uom", "=", uom.id),
+                ("product_id", "=", line.product_id.id),
+                ("product_uom", "=", line.uom_id.id),
             ]
         )
         if move:
-            qty = move.product_uom_qty + quantity
+            qty = move.product_uom_qty + line.quantity
             move.write({"product_uom_qty": qty})
         else:
             values = {
                 "state": "confirmed",
-                "product_id": product.id,
-                "product_uom": uom.id,
-                "product_uom_qty": quantity,
+                "product_id": line.product_id.id,
+                "product_uom": line.uom_id.id,
+                "product_uom_qty": line.quantity,
                 # 'quantity_done': quantity,  # o fi bine >???
                 "picking_id": picking.id,
-                "price_unit": price_unit,
-                "location_id": picking.picking_type_id.default_location_src_id.id,
-                "location_dest_id": picking.picking_type_id.default_location_dest_id.id,
+                "price_unit": line.price_unit,
+                "location_id": location_id,
+                "location_dest_id": location_dest_id,
                 "picking_type_id": picking.picking_type_id.id,
                 "simple_mrp_id": self.id,
             }
@@ -163,6 +186,9 @@ class MRPSimple(models.Model):
     def create_picking_lines_in(self, picking_in):
         if not self.product_in_ids:
             raise UserError(self.env._("You need at least one final product"))
+
+        location_id = picking_in.picking_type_id.default_location_src_id.id
+        location_dest_id = picking_in.location_dest_id.id
         for line in self.product_in_ids:
             params = self.env["ir.config_parameter"].sudo()
             allow_zero = safe_eval(
@@ -174,21 +200,21 @@ class MRPSimple(models.Model):
             if line.product_id.type != "service":
                 self.add_picking_line(
                     picking=picking_in,
-                    product=line.product_id,
-                    quantity=line.quantity,
-                    uom=line.uom_id,
-                    price_unit=line.price_unit,
+                    line=line,
+                    location_id=location_id,
+                    location_dest_id=location_dest_id,
                 )
 
     def create_picking_lines_out(self, picking_out):
+        location_id = picking_out.location_id.id
+        location_dest_id = picking_out.picking_type_id.default_location_dest_id.id
         for line in self.product_out_ids:
             if line.product_id.type != "service":
                 self.add_picking_line(
                     picking=picking_out,
-                    product=line.product_id,
-                    quantity=line.quantity,
-                    uom=line.uom_id,
-                    price_unit=line.product_id.standard_price,
+                    line=line,
+                    location_id=location_id,
+                    location_dest_id=location_dest_id,
                 )
 
     def add_multiple_lines(self):
@@ -253,12 +279,27 @@ class MRPSimpleLineOut(models.Model):
     price_unit = fields.Float("Unit Price", digits="Product Price")
     uom_id = fields.Many2one("uom.uom", "Unit of Measure")
     stock = fields.Float(related="product_id.qty_available")
+    location_qty = fields.Float(
+        compute="_compute_location_quantity", string="Location Qty"
+    )
     value = fields.Float(compute="_compute_value", string="Value", store=True)
 
     @api.depends("quantity", "price_unit")
     def _compute_value(self):
         for line in self:
             line.value = line.quantity * line.price_unit
+
+    @api.depends("mrp_simple_id.location_src_id")
+    def _compute_location_quantity(self):
+        location_id = self.mrp_simple_id.location_src_id.id
+        for line in self:
+            stock_quant = self.env["stock.quant"].search(
+                [
+                    ("product_id", "=", line.product_id.id),
+                    ("location_id", "=", location_id),
+                ]
+            )
+            line.location_qty = sum(stock_quant.mapped("quantity"))
 
     @api.onchange("product_id", "quantity")
     def onchange_product_id(self):
