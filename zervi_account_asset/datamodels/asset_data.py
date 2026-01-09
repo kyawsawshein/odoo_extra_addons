@@ -15,6 +15,10 @@ class EnumBase(Enum):
         """Returns the description part of the value tuple."""
         return self.value[1]
 
+    @classmethod
+    def get_list(cls):
+        return [(item.code, item.description) for item in cls]
+
 
 class State(EnumBase):
     DRAFT = ("draft", "Draft")
@@ -30,6 +34,12 @@ class MethodTime(EnumBase):
 class AssetStart(EnumBase):
     LAST_DAY = ("last_day_period", "Based on Last Day of Purchase Period")
     MANUAL = ("manual", "Manual (Defaulted on Purchase Date)")
+
+
+class LineStatus(EnumBase):
+    DRAFT = ("draft", "Draft")
+    PROGRESS = ("progress", "Progress")
+    DONE = ("done", "Done")
 
 
 @dataclass

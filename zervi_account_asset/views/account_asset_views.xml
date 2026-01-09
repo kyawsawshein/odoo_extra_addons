@@ -10,6 +10,11 @@
                 <field name="product_id" readonly="state != 'draft'"/>
                 <field name="quantity" readonly="True"/>
             </field>
+
+            <xpath expr="//field[@name='depreciation_line_ids']/list/field[@name='parent_state']" position="after">
+                <field name="status" readonly="True"/>
+            </xpath>
+
         </field>
     </record>
 
