@@ -1,4 +1,5 @@
 # pylint: disable = (protected-access)
+import calendar
 import json
 import logging
 from collections import defaultdict
@@ -7,11 +8,13 @@ from itertools import groupby
 from typing import Dict, List
 
 from odoo import _, api, fields, models
+from odoo.fields import Domain
 from odoo.modules.registry import Registry
+from odoo.tools.misc import DEFAULT_SERVER_DATE_FORMAT
 
 from ..datamodels.asset_data import LineStatus, State
 from ..datamodels.product_data import ProductValue
-from ..helper.query import Query
+from ..helper.query import DepreCols, Query
 
 _logger = logging.getLogger(__name__)
 
@@ -23,6 +26,7 @@ class AccountAssetAsset(models.Model):
 
     product_id = fields.Many2one("product.product", string="Product")
     quantity = fields.Float(string="Quantity")
+    lot_name = fields.Char(string="Lot Name")
 
     def create_asset(self, vals: List[Dict], end_date: str = None):
         for val in vals:
@@ -32,7 +36,7 @@ class AccountAssetAsset(models.Model):
                 val["method_end"] = end_date
             asset = self.create(val)
             if asset.category_id.open_asset:
-                if asset.date_first_depreciation == "last_day_period":
+                if asset.date_first_depreciation == "last_day_period" and end_date:
                     asset.method_end = end_date
                 asset.validate()
 

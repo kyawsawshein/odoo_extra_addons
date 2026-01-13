@@ -52,6 +52,7 @@ class Assets:
     partner_id: int
     company_id: int
     date: str
+    lot_name: Optional[str] = None
     date_first_depreciation: Optional[str] = None
     method_time: Optional[str] = None
     code: Optional[str] = None

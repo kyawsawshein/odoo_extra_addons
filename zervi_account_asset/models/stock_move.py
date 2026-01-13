@@ -47,6 +47,7 @@ class StockMove(models.Model):
                     partner_id=self.picking_id.partner_id.id,
                     company_id=self.company_id.id,
                     date=self.date.strftime(DEFAULT_SERVER_DATE_FORMAT),
+                    lot_name=lines[:1].lot_name,
                 ).__dict__
             )
             self.env["account.asset.asset"].create_asset(vals, end_date)
@@ -71,13 +72,21 @@ class StockMove(models.Model):
         return remove_assets
 
     def update_assets(self):
+        lot_names = []
+        for line in self.move_line_ids:
+            if line.lot_id:
+                lot_names.append(line.lot_id.name)
+
         domain = [
             ("product_id", "=", self.product_id.id),
             ("state", "=", State.OPEN.code),
-            ("type", "=", "purchase"),
             ("category_id", "=", self.product_id.asset_category_id.id),
             ("quantity", ">", 0),
         ]
+
+        if lot_names:
+            domain.append(("lot_name", "in", lot_names))
+
         asset_qty = self.product_uom_qty
         _logger.info(f"Asset get domain : {domain}")
         assets = self.env["account.asset.asset"].search(

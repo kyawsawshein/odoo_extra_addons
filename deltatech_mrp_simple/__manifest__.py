@@ -14,6 +14,7 @@
         "security/ir.model.access.csv",
         "data/ir_config_parameter.xml",
         "views/mrp_simple_view.xml",
+        "views/product_view.xml",
         "wizard/add_multi_lines.xml",
     ],
     "images": ["static/description/main_screenshot.png"],
