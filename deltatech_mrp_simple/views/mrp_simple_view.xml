@@ -51,7 +51,7 @@
                             <label for="product_out_ids" string="Consume" />
                             <field name="product_out_ids" nolabel="1" readonly="state!='draft'">
                                 <list editable="bottom">
-                                    <field name="product_id" />
+                                    <field name="product_id" options="{'no_create':True}"/>
                                     <field name="stock" />
                                     <field name="location_qty"/>
                                     <field name="quantity" sum="1" />
@@ -65,7 +65,7 @@
                             <label for="product_in_ids" string="Receipt" />
                             <field name="product_in_ids" nolabel="1" readonly="state!='draft'">
                                 <list editable="bottom">
-                                    <field name="product_id" />
+                                    <field name="product_id" options="{'no_create':True}"/>
                                     <field name="quantity" sum="1" />
                                     <field name="uom_id" />
                                     <field name="price_unit" />
@@ -94,12 +94,11 @@
     </record>
 
     <record id="action_mrp_simple" model="ir.actions.act_window">
-        <field name="name">Simple Production</field>
+        <field name="name">UOM Conversion</field>
         <field name="res_model">mrp.simple</field>
         <field name="view_mode">list,form</field>
         <field name="target">current</field>
     </record>
 
-
-    <menuitem id="menu_mrp_simple" name="Simple Production" action="action_mrp_simple" parent="stock.menu_stock_warehouse_mgmt" />
+    <menuitem id="menu_mrp_simple" name="UOM Conversion" action="action_mrp_simple" parent="stock.menu_stock_warehouse_mgmt" />
 </odoo>

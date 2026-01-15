@@ -1,5 +1,4 @@
 # pylint: disable = (protected-access)
-import calendar
 import json
 import logging
 from collections import defaultdict
@@ -8,7 +7,6 @@ from itertools import groupby
 from typing import Dict, List
 
 from odoo import _, api, fields, models
-from odoo.fields import Domain
 from odoo.modules.registry import Registry
 from odoo.tools.misc import DEFAULT_SERVER_DATE_FORMAT
 
@@ -166,7 +164,7 @@ class AccountAssetAsset(models.Model):
                 for dep in product_dep:
                     self.create_product_depreciation_cost(
                         product_id=dep[DepreCols.PRODUCT],
-                        value=dep[DepreCols.VALUE],
+                        value=dep[DepreCols.COST],
                         lot_id=dep[DepreCols.LOT_ID],
                         move_id=dep[DepreCols.MOVE_ID],
                     )

@@ -8,7 +8,7 @@
     "summary": "Product Conditions",
     "images": ["static/description/icon.png"],
     "depends": [
-        "product",
+        "stock",
     ],
     "data": [
         "views/product_template_views.xml",

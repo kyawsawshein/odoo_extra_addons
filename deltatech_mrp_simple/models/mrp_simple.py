@@ -29,7 +29,10 @@ class MRPSimple(models.Model):
         domain=[("code", "=", "outgoing")],
     )
     picking_type_receipt_production = fields.Many2one(
-        "stock.picking.type", string="Picking type receipt", required=True
+        "stock.picking.type",
+        string="Picking type receipt",
+        required=True,
+        domain=[("code", "=", "incoming")],
     )
     location_src_id = fields.Many2one(
         "stock.location", string="Source Location", domain=[("usage", "=", "internal")]
@@ -95,24 +98,20 @@ class MRPSimple(models.Model):
         # se face consumul
         if picking_out.move_ids:
             picking_out.action_assign()
-            if self.validation_consume:
-                if picking_out.state == "assigned":
-                    for move in picking_out.move_ids:
-                        for move_line in move.move_line_ids:
-                            move_line.quantity = move_line.quantity_product_uom
+            if self.validation_consume and picking_out.state == "assigned":
+                for move_line in picking_out.move_line_ids:
+                    move_line.quantity = move_line.quantity_product_uom
                 picking_out.button_validate()
 
         # se face receptia
         if picking_in.move_ids:
             picking_in.action_assign()
-            if self.validation_receipt:
-                if picking_in.state == "assigned":
-                    for move in picking_in.move_ids:
-                        for move_line in move.move_line_ids:
-                            move_line.quantity = move_line.quantity_product_uom
-                            for line in self.product_in_ids:
-                                if line.product_id.id == move.product_id.id:
-                                    move_line.lot_name = line.lot_name
+            if self.validation_receipt and picking_in.state == "assigned":
+                for move_line in picking_in.move_line_ids:
+                    move_line.quantity = move_line.quantity_product_uom
+                    for line in self.product_in_ids:
+                        if line.product_id.id == move_line.product_id.id:
+                            move_line.lot_name = line.lot_name
                 picking_in.button_validate()
 
         self.write({"state": "done"})
@@ -135,7 +134,6 @@ class MRPSimple(models.Model):
                 "product_id": line.product_id.id,
                 "product_uom": line.uom_id.id,
                 "product_uom_qty": line.quantity,
-                # 'quantity_done': quantity,  # o fi bine >???
                 "picking_id": picking.id,
                 "price_unit": line.price_unit,
                 "location_id": location_id,
@@ -240,7 +238,10 @@ class MRPSimpleLineIn(models.Model):
     _description = "MRP Simple Line IN"
 
     mrp_simple_id = fields.Many2one("mrp.simple")
-    product_id = fields.Many2one("product.product")
+    product_id = fields.Many2one(
+        "product.product",
+        domain="[('code', 'in', raw_product_domain)] if raw_product_domain else []",
+    )
     quantity = fields.Float(
         string="Quantity", digits="Product Unit of Measure", default=1
     )
@@ -248,6 +249,12 @@ class MRPSimpleLineIn(models.Model):
     uom_id = fields.Many2one("uom.uom", "Unit of Measure")
     value = fields.Float(compute="_compute_value", string="Value", store=True)
     lot_name = fields.Char("Lot/Serial Number Name")
+
+    raw_product_domain = fields.Json(compute="_compute_raw_product_domain")
+    expired_date = fields.Date()
+
+    def _compute_raw_product_domain(self):
+        self.raw_product_domain = [("code", "in", ("internal"))]
 
     @api.onchange("product_id")
     def onchange_product_id(self):
@@ -283,6 +290,7 @@ class MRPSimpleLineOut(models.Model):
         compute="_compute_location_quantity", string="Location Qty"
     )
     value = fields.Float(compute="_compute_value", string="Value", store=True)
+    lot_id = fields.Many2one(comodel_name="stock.lot")
 
     @api.depends("quantity", "price_unit")
     def _compute_value(self):

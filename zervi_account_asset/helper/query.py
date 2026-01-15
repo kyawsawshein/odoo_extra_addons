@@ -15,6 +15,7 @@ class Query:
         ,       aadl.depreciation_date
         ,       aaa.value - aadl.amount as amount
         ,		aadl.remaining_value AS value
+        ,       aadl.remaining_value / aaa.quantity AS cost
         FROM account_asset_depreciation_line aadl
             INNER JOIN account_asset_asset aaa ON aaa.id=aadl.asset_id
             INNER JOIN account_asset_category aac ON aac.id=aaa.category_id
@@ -29,6 +30,7 @@ class Query:
         ANd aac.group_entries = {group_entries}
         AND aadl.status = '{status}'
         AND aadl.depreciation_date <= '{depreciation_date}'
+        AND aaa.id=35
     """
 
 
@@ -44,3 +46,4 @@ class DepreCols:
     MONTH = 8
     AMOUNT = 9
     VALUE = 10
+    COST  = 11

@@ -1,14 +1,11 @@
 # pylint: disable = (protected-access)
-import calendar
 import json
 import logging
-from collections import defaultdict
 from datetime import date, datetime
 from itertools import groupby
 from typing import Dict, List
 
-from odoo import _, api, fields, models
-from odoo.fields import Domain
+from odoo import api, fields, models
 from odoo.modules.registry import Registry
 from odoo.tools.misc import DEFAULT_SERVER_DATE_FORMAT
 
@@ -40,145 +37,160 @@ class AccountAssetAsset(models.Model):
                     asset.method_end = end_date
                 asset.validate()
 
+    def _build_query(self, depreciation_date: str, group_entries: bool) -> str:
+        query = Query.get_depreciations.format(
+            company_id=self.env.company.id,
+            group_entries=group_entries,
+            status=LineStatus.DRAFT.code,
+            depreciation_date=depreciation_date,
+        )
+        return query
+
+    def get_asset_depreciation(
+        self, depreciation_date: str, group_entries: bool = False
+    ):
+        self.env.cr.execute(
+            self._build_query(
+                depreciation_date=depreciation_date, group_entries=group_entries
+            )
+        )
+        return self.env.cr.fetchall()
+
+    def update_depreciation_line(self, status: str, line_ids: list):
+        self.env.cr.execute(Query.updaate_depreciation, (status, tuple(line_ids)))
+
+    @staticmethod
+    def get_derpreciation_ids(depreciation_data):
+        return [data[DepreCols.DEP_IDS] for data in depreciation_data]
+
     @api.model
     def _cron_generate_journal_entries(self):
         self.compute_generated_journal_entries(datetime.today())
 
     @api.model
     def compute_generated_journal_entries(
-        self, depreciation_date: date, asset_type=None
+        self, depreciation_date: date, asset_type: str = None
     ):
-        type_domain = []
-        if asset_type:
-            type_domain.append(("type", "=", asset_type))
+        self.asset_ungroup_depreciation(depreciation_date, asset_type)
+        self.asset_group_depreciation(depreciation_date, asset_type)
 
-        self.asset_ungroup_depreciation(depreciation_date, type_domain)
-        self.asset_group_depreciation(depreciation_date, type_domain)
-
-    def asset_ungroup_depreciation(self, depreciation_date: date, type_domain: List):
-        domain = type_domain + [
-            ("state", "=", State.OPEN.code),
-            ("category_id.group_entries", "=", False),
-        ]
-        ungrouped_assets = self.env["account.asset.asset"].search(domain)
-        if ungrouped_assets:
-            ungrouped_assets._compute_journal_entries(depreciation_date)
-
-    def asset_group_depreciation(self, depreciation_date: date, type_domain: List):
-        category_domain = type_domain + [("group_entries", "=", True)]
-        domain = type_domain + [("state", "=", State.OPEN.code)]
-        for grouped_category in self.env["account.asset.category"].search(
-            category_domain
-        ):
-            assets = self.env["account.asset.asset"].search(
-                domain + [("category_id", "=", grouped_category.id)]
-            )
-            if assets:
-                assets._compute_journal_entries(depreciation_date, group_entries=True)
-
-    def _compute_journal_entries(self, depreciation_date: date, group_entries=False):
-        domain = [
-            ("asset_id", "in", self.ids),
-            ("depreciation_date", "<=", depreciation_date),
-            ("move_check", "=", False),
-            ("status", "=", LineStatus.DRAFT.code),
-        ]
-        depreciations = self.env["account.asset.depreciation.line"].search(domain)
-        if not depreciations:
-            return
-
-        monthly_depreciation = self.get_product_depreciation(depreciations)
-        self.update_depreciation_line(
-            status=LineStatus.PROGRESS.code, line_ids=depreciations.ids
+    def asset_ungroup_depreciation(
+        self, depreciation_date: date, asset_type: str = None
+    ):
+        asset_depreciations = self.get_asset_depreciation(
+            depreciation_date=depreciation_date.strftime(DEFAULT_SERVER_DATE_FORMAT)
         )
+        self._compute_journal_entries(asset_depreciations)
 
-        if group_entries:
-            # depreciation_ids.create_grouped_move()
-            self.with_delay_entries(
-                date_end=depreciation_date,
-                depreciation_ids=depreciations.ids,
-                method="create_grouped_move",
-            )
-        else:
-            # depreciation_ids.create_move()
-            self.with_delay_entries(
-                date_end=depreciation_date,
-                depreciation_ids=depreciations.ids,
-                method="create_move",
-            )
+    def asset_group_depreciation(self, depreciation_date: date, asset_type: str = None):
+        asset_depreciations = self.get_asset_depreciation(
+            depreciation_date=depreciation_date.strftime(DEFAULT_SERVER_DATE_FORMAT),
+            group_entries=True,
+        )
+        for category, depreciations in groupby(
+            sorted(asset_depreciations, key=lambda x: x[DepreCols.CATEGORY_ID]),
+            key=lambda x: x[DepreCols.CATEGORY_ID],
+        ):
+            _logger.info("# Asset Category ID : %s ", category)
+            self._compute_journal_entries(list(depreciations), group_entries=True)
+
+    def _compute_journal_entries(
+        self, asset_depreciations: list, group_entries: bool = False
+    ):
+        asset_line = self.env["account.asset.depreciation.line"]
+        for month, depreciation in groupby(
+            sorted(asset_depreciations, key=lambda d: d[DepreCols.MONTH]),
+            lambda d: d[DepreCols.MONTH],
+        ):
+            depreciation = list(depreciation)
+            _logger.info("# Asset depreciation moht : %s ", month)
+            depreciation_ids = self.get_derpreciation_ids(depreciation)
+            if depreciation_ids:
+                self.update_depreciation_product_cost(depreciation)
+                if group_entries:
+                    asset_line.browse(depreciation_ids).create_grouped_move()
+                    # self.with_delay_entries(
+                    #     month=month,
+                    #     depreciation_ids=depreciation_ids,
+                    #     method="create_grouped_move",
+                    # )
+                else:
+                    asset_line.browse(depreciation_ids).create_move()
+                    # self.with_delay_entries(
+                    #     month=month,
+                    #     depreciation_ids=depreciation_ids,
+                    #     method="create_move",
+                    # )
 
         # we re-evaluate the assets to determine if we can close them
         for asset in self:
             if asset.currency_id.is_zero(asset.value_residual):
                 asset.state = State.CLOSE.code
 
-        self.update_depreciation_product_price(monthly_depreciation)
-
-    def get_product_depreciation(self, depreciation_ids: List) -> Dict:
-        monthly_depreciation = defaultdict(dict)
-        for month, depreciations in groupby(
-            sorted(
-                filter(lambda d: d.asset_id.product_id, depreciation_ids),
-                key=lambda s: s.depreciation_date,
-            ),
-            key=lambda d: d.depreciation_date,
-        ):
-            _logger.info(f"month {month}")
-            product_depreciation = defaultdict(float)
-            for product, lines in groupby(
-                sorted(depreciations, key=lambda s: s.asset_id.product_id),
-                key=lambda x: x.asset_id.product_id,
-            ):
-                _logger.info(f"product {product.name}")
-                for line in lines:
-                    product_depreciation[product] += line.amount
-
-            monthly_depreciation[month] = product_depreciation
-
-        return monthly_depreciation
-
-    def update_product_price(self, product: models.Model, price: float):
+    def create_product_depreciation_cost(
+        self, product_id: int, value: float, move_id: int = None, lot_id: int = None
+    ):
         self.env["product.value"].sudo().create(
             ProductValue(
-                product_id=product.id,
-                value=price,
-                company_id=product.company_id.id or self.env.company.id,
+                product_id=product_id,
+                value=value,
                 date=fields.Datetime.now(),
                 description=_(
-                    "Depreciation price update from %(old_price)s to %(new_price)s by %(user)s",
-                    old_price=product.standard_price,
-                    new_price=price,
+                    "Depreciation price updated %(new_price)s by %(user)s",
+                    new_price=value,
                     user=self.env.user.name,
                 ),
+                lot_id=lot_id,
+                move_id=move_id,
+                company_id=self.env.company.id,
             ).__dict__
         )
 
-    def update_depreciation_product_price(self, monthly_depreciation: Dict):
-        for month, product_depreciation in monthly_depreciation.items():
-            _logger.info(f"month {month}")
+    def update_depreciation_product_cost(self, depreciations: List):
+        for product_method, product_dep in groupby(
+            depreciations,
+            key=lambda x: (x[DepreCols.PRODUCT], x[DepreCols.COST_METHOD]),
+        ):
             products = []
-            for product, value in product_depreciation.items():
-                if abs(value) <= 0:
-                    continue
+            if product_method[1] == "fifo":
+                for dep in product_dep:
+                    self.create_product_depreciation_cost(
+                        product_id=dep[DepreCols.PRODUCT],
+                        value=dep[DepreCols.COST],
+                        lot_id=dep[DepreCols.LOT_ID],
+                        move_id=dep[DepreCols.MOVE_ID],
+                    )
+                products.append(product_method[0])
+                _logger.info("Updated product fifo price for depreciation.")
+            if product_method[1] == "average":
+                value = 0.0
+                month = ""
+                for dep in product_dep:
+                    _logger.info("#Average dpe %s", dep)
+                    value += dep[DepreCols.AMOUNT]
+                    month = dep[DepreCols.MONTH]
 
+                if not value:
+                    continue
+                product = self.env["product.product"].browse(product_method[0])
+                _logger.info("# Month %s ", month)
                 quantity = (
                     product._with_valuation_context()
                     .with_context(to_date=month)
                     .qty_available
                 )
+                if quantity:
+                    price = product.standard_price - (value / (quantity or 1))
+                    _logger.info(f"Product {product.name} price {price}")
 
-                price = product.standard_price - (value / (quantity or 1))
-                _logger.info(f"Product {product.name} price {price}")
-
-                self.update_product_price(product, price)
-                products.append(product.id)
-                _logger.info("Updated product price for depreciation.")
+                    self.create_product_depreciation_cost(
+                        product_id=product.id, value=price
+                    )
+                    products.append(product.id)
+                    _logger.info("Updated product price for depreciation.")
 
             # Recompute the standard price
             self.env["product.product"].browse(products)._update_standard_price()
-
-    def update_depreciation_line(self, status: str, line_ids: list):
-        self.env.cr.execute(Query.updaate_depreciation, (status, tuple(line_ids)))
 
     @staticmethod
     def split_by_batch(lst, batch_size):
@@ -187,7 +199,7 @@ class AccountAssetAsset(models.Model):
 
     def with_delay_entries(
         self,
-        date_end: date,
+        month: date,
         depreciation_ids: List[int],
         method: str,
         channel: str = "root",
@@ -202,10 +214,9 @@ class AccountAssetAsset(models.Model):
                 or ASSET_BATCH
             )
             for depreciation in self.split_by_batch(depreciation_ids, entry_limit):
-                _logger.info("Depraciation ..... %s ", depreciation)
                 self.with_delay(
                     channel=channel,
-                    description=f"Asset {date_end} {method} : {len(depreciation)}",
+                    description=f"Asset {month} {method} : {len(depreciation)}",
                 ).entries(assets=json.dumps(depreciation), method=method)
 
     def entries(self, assets: str, method: str):
@@ -214,14 +225,15 @@ class AccountAssetAsset(models.Model):
             depreciations = new_env["account.asset.depreciation.line"].browse(
                 json.loads(assets)
             )
-            if method == "create_grouped_move":
-                moves = depreciations.create_grouped_move()
-            moves = depreciations.create_move()
-            # move = getattr(depreciations, method, None)
+            # if method == "create_grouped_move":
+            #     moves = depreciations.create_grouped_move()
+            # else:
+            #     moves = depreciations.create_move()
+            moves = getattr(depreciations, method, None)
             self.update_depreciation_line(
                 status=LineStatus.DONE.code, line_ids=depreciations.ids
             )
-            _logger.info("# ==================== Done depreciation %s", moves)
+            _logger.info("# Done depreciation %s", moves)
 
 
 class AccountAssetDepreciationLine(models.Model):

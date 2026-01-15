@@ -23,4 +23,15 @@
         </field>
     </record>
 
+    <record id="view_production_lot_form_product_grade" model="ir.ui.view">
+        <field name="name">view.production.lot.form.product.grade</field>
+        <field name="model">stock.lot</field>
+        <field name="inherit_id" ref="stock.view_production_lot_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='ref']" position="after">
+                <field name="grade"/>
+            </xpath>
+        </field>
+    </record>
+
 </odoo>
