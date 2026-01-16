@@ -1,7 +1,6 @@
 import logging
 
-from odoo import _, api, fields, models
-from odoo.fields import Domain
+from odoo import _, fields, models
 
 VALUATION_DICT = {
     "value": 0,
@@ -11,14 +10,6 @@ VALUATION_DICT = {
 
 
 _logger = logging.getLogger(__name__)
-
-
-class StockPicking(models.Model):
-    _inherit = "stock.picking"
-
-    sale_simple_mrp_id = fields.Many2one(
-        "sale.order", string="Sales Order from MRP", store=True, readonly=False
-    )
 
 
 class StockMove(models.Model):

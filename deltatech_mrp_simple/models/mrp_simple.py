@@ -1,8 +1,10 @@
 import logging
+from typing import List
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
-from odoo.tools.safe_eval import safe_eval
+
+from ...data_commom.datamodels.datamodel import LineData, MoveData, PickingData
 
 _logger = logging.getLogger(__name__)
 
@@ -58,92 +60,199 @@ class MRPSimple(models.Model):
             self.picking_type_receipt_production.default_location_dest_id
         )
 
+    def add_move_out_line(
+        self,
+        line,
+        location_id: int,
+        location_dest_id: int,
+        qty: float,
+        lot_id: int = None,
+    ):
+        return LineData(
+            product_id=line.product_id.id,
+            product_uom_id=line.product_id.uom_id.id,
+            location_id=location_id,
+            location_dest_id=location_dest_id,
+            lot_id=lot_id,
+            quantity=qty,
+        ).__dict__
+
+    def add_move_in_line(
+        self,
+        line,
+        location_id: int,
+        location_dest_id: int,
+        qty: float,
+        lot_name: str = "",
+    ):
+        return LineData(
+            product_id=line.product_id.id,
+            product_uom_id=line.product_id.uom_id.id,
+            location_id=location_id,
+            location_dest_id=location_dest_id,
+            lot_name=lot_name,
+            quantity=qty,
+        ).__dict__
+
+    def _prepare_move_out(self, lines, location_id, location_dest_id) -> List:
+        moves = []
+        for line in lines:
+            move = MoveData(
+                location_id=location_id,
+                location_dest_id=location_dest_id,
+                product_id=line.product_id.id,
+                product_uom=line.uom_id.id,
+                product_uom_qty=line.quantity,
+                price_unit=line.price_unit,
+                simple_mrp_id=line.mrp_simple_id.id,
+            )
+            move_lines = []
+            quantity = line.quantity
+            if line.lot_ids:
+                for lot in line.lot_ids:
+                    qty = min(lot.product_qty, quantity)
+                    move_lines.append(
+                        (
+                            0,
+                            0,
+                            self.add_move_out_line(
+                                line,
+                                location_id,
+                                location_dest_id,
+                                qty=qty,
+                                lot_id=lot.id,
+                            ),
+                        )
+                    )
+                    quantity -= qty
+                    if quantity <= 0:
+                        break
+            else:
+                move_lines.append(
+                    (
+                        0,
+                        0,
+                        self.add_move_out_line(
+                            line, location_id, location_dest_id, qty=quantity
+                        ),
+                    )
+                )
+            move.move_line_ids = move_lines
+            moves.append((0, 0, move.__dict__))
+        return moves
+
+    def _prepare_move_in(self, lines, location_id, location_dest_id) -> List:
+        moves = []
+        for line in lines:
+            move = MoveData(
+                picking_type_id=self.picking_type_receipt_production.id,
+                location_id=location_id,
+                location_dest_id=location_dest_id,
+                product_id=line.product_id.id,
+                product_uom=line.uom_id.id,
+                product_uom_qty=line.quantity,
+                price_unit=line.price_unit,
+                simple_mrp_id=line.mrp_simple_id.id,
+                move_line_ids=[
+                    (
+                        0,
+                        0,
+                        self.add_move_in_line(
+                            line,
+                            location_id,
+                            location_dest_id,
+                            qty=line.quantity,
+                            lot_name=line.lot_name,
+                        ),
+                    )
+                ],
+            )
+            moves.append((0, 0, move.__dict__))
+        return moves
+
+    def prepare_picking(
+        self, picking_type_id: int, location_id: int, location_dest_id: int
+    ):
+        picking = PickingData(
+            picking_type_id=picking_type_id,
+            location_id=location_id,
+            location_dest_id=location_dest_id,
+            date_done=fields.Datetime.now(),
+        )
+        return picking
+
+    def create_picking_lines_out(self, context):
+        picking_type = self.picking_type_consume
+        location_id = self.location_src_id.id
+        location_dest_id = picking_type.default_location_dest_id.id
+
+        picking_data = self.prepare_picking(
+            picking_type_id=picking_type.id,
+            location_id=location_id,
+            location_dest_id=location_dest_id,
+        )
+        picking_data.move_ids = self._prepare_move_out(
+            lines=self.product_out_ids,
+            location_id=location_id,
+            location_dest_id=location_dest_id,
+        )
+        _logger.info("# ===== Picking Data Out : %s ", picking_data)
+        return (
+            self.env["stock.picking"]
+            .with_context(**context)
+            .create(picking_data.__dict__)
+        )
+
+    def create_picking_lines_in(self, context):
+        picking_type = self.picking_type_receipt_production
+        location_id = picking_type.default_location_src_id.id
+        location_dest_id = self.location_dest_id.id
+        picking_data = self.prepare_picking(
+            picking_type_id=picking_type.id,
+            location_id=location_id,
+            location_dest_id=location_dest_id,
+        )
+        picking_data.move_ids = self._prepare_move_in(
+            lines=self.product_in_ids,
+            location_id=location_id,
+            location_dest_id=location_dest_id,
+        )
+        _logger.info("# ===== Picking Data In : %s ", picking_data)
+        return (
+            self.env["stock.picking"]
+            .with_context(**context)
+            .create(picking_data.__dict__)
+        )
+
     def do_transfer(self):
         self.compute_finit_price()
         picking_type_consume = self.picking_type_consume
         picking_type_receipt_production = self.picking_type_receipt_production
 
-        context = {"default_picking_type_id": picking_type_receipt_production.id}
-        picking_in = (
-            self.env["stock.picking"]
-            .with_context(**context)
-            .create(
-                {
-                    "picking_type_id": picking_type_receipt_production.id,
-                    "location_dest_id": self.location_dest_id.id,
-                    "date_done": self.date,
-                }
-            )
-        )
-
-        context = {"default_picking_type_id": picking_type_consume.id}
-        picking_out = (
-            self.env["stock.picking"]
-            .with_context(**context)
-            .create(
-                {
-                    "picking_type_id": picking_type_consume.id,
-                    "location_id": self.location_src_id.id,
-                    "date_done": self.date,
-                }
-            )
-        )
-
-        self.create_picking_lines_in(picking_in)
-        self.create_picking_lines_out(picking_out)
-
+        context_out = {"default_picking_type_id": picking_type_consume.id}
+        context_in = {"default_picking_type_id": picking_type_receipt_production.id}
+        picking_out = self.create_picking_lines_out(context_out)
+        picking_in = self.create_picking_lines_in(context_in)
         self.consume_id = picking_out
         self.receipt_id = picking_in
 
         # se face consumul
         if picking_out.move_ids:
             picking_out.action_assign()
+            _logger.info("# Out picking state %s ", picking_out.state)
             if self.validation_consume and picking_out.state == "assigned":
-                for move_line in picking_out.move_line_ids:
-                    move_line.quantity = move_line.quantity_product_uom
                 picking_out.button_validate()
+        _logger.info("Done validaet picking for out.")
 
         # se face receptia
         if picking_in.move_ids:
             picking_in.action_assign()
             if self.validation_receipt and picking_in.state == "assigned":
-                for move_line in picking_in.move_line_ids:
-                    move_line.quantity = move_line.quantity_product_uom
-                    for line in self.product_in_ids:
-                        if line.product_id.id == move_line.product_id.id:
-                            move_line.lot_name = line.lot_name
                 picking_in.button_validate()
+        _logger.info("Done validaet picking for in.")
 
         self.write({"state": "done"})
         return self
-
-    def add_picking_line(self, picking, line, location_id, location_dest_id):
-        move = self.env["stock.move"].search(
-            [
-                ("picking_id", "=", picking.id),
-                ("product_id", "=", line.product_id.id),
-                ("product_uom", "=", line.uom_id.id),
-            ]
-        )
-        if move:
-            qty = move.product_uom_qty + line.quantity
-            move.write({"product_uom_qty": qty})
-        else:
-            values = {
-                "state": "confirmed",
-                "product_id": line.product_id.id,
-                "product_uom": line.uom_id.id,
-                "product_uom_qty": line.quantity,
-                "picking_id": picking.id,
-                "price_unit": line.price_unit,
-                "location_id": location_id,
-                "location_dest_id": location_dest_id,
-                "picking_type_id": picking.picking_type_id.id,
-                "simple_mrp_id": self.id,
-            }
-
-            move = self.env["stock.move"].create(values)
-        return move
 
     def open_consume(self):
         self.ensure_one()
@@ -181,57 +290,6 @@ class MRPSimple(models.Model):
         for line_out, line_in in zip(self.product_out_ids, self.product_in_ids):
             line_in.price_unit = line_out.value / line_in.quantity
 
-    def create_picking_lines_in(self, picking_in):
-        if not self.product_in_ids:
-            raise UserError(self.env._("You need at least one final product"))
-
-        location_id = picking_in.picking_type_id.default_location_src_id.id
-        location_dest_id = picking_in.location_dest_id.id
-        for line in self.product_in_ids:
-            params = self.env["ir.config_parameter"].sudo()
-            allow_zero = safe_eval(
-                params.get_param("deltatech_mrp_simple.allow_zero_cost", False)
-            )
-            if not line.price_unit and not allow_zero:
-                raise UserError(self.env._("Price 0 for result product!"))
-
-            if line.product_id.type != "service":
-                self.add_picking_line(
-                    picking=picking_in,
-                    line=line,
-                    location_id=location_id,
-                    location_dest_id=location_dest_id,
-                )
-
-    def create_picking_lines_out(self, picking_out):
-        location_id = picking_out.location_id.id
-        location_dest_id = picking_out.picking_type_id.default_location_dest_id.id
-        for line in self.product_out_ids:
-            if line.product_id.type != "service":
-                self.add_picking_line(
-                    picking=picking_out,
-                    line=line,
-                    location_id=location_id,
-                    location_dest_id=location_dest_id,
-                )
-
-    def add_multiple_lines(self):
-        self.ensure_one()
-        view = self.env.ref("deltatech_mrp_simple.multi_add_view_form")
-        wiz = self.env["add.multi.mrp.lines"].create({"simple_mrp_id": self.id})
-        return {
-            "name": self.env._("Add lines"),
-            "type": "ir.actions.act_window",
-            "view_type": "form",
-            "view_mode": "form",
-            "res_model": "add.multi.mrp.lines",
-            "views": [(view.id, "form")],
-            "view_id": view.id,
-            "target": "new",
-            "res_id": wiz.id,
-            "context": self.env.context,
-        }
-
 
 class MRPSimpleLineIn(models.Model):
     _name = "mrp.simple.line.in"
@@ -240,7 +298,7 @@ class MRPSimpleLineIn(models.Model):
     mrp_simple_id = fields.Many2one("mrp.simple")
     product_id = fields.Many2one(
         "product.product",
-        domain="[('code', 'in', raw_product_domain)] if raw_product_domain else []",
+        domain="[('default_code', 'in', raw_product_domain)] if raw_product_domain else []",
     )
     quantity = fields.Float(
         string="Quantity", digits="Product Unit of Measure", default=1
@@ -254,7 +312,7 @@ class MRPSimpleLineIn(models.Model):
     expired_date = fields.Date()
 
     def _compute_raw_product_domain(self):
-        self.raw_product_domain = [("code", "in", ("internal"))]
+        self.raw_product_domain = []
 
     @api.onchange("product_id")
     def onchange_product_id(self):
@@ -283,31 +341,49 @@ class MRPSimpleLineOut(models.Model):
     quantity = fields.Float(
         string="Quantity", digits="Product Unit of Measure", default=1
     )
-    price_unit = fields.Float("Unit Price", digits="Product Price")
-    uom_id = fields.Many2one("uom.uom", "Unit of Measure")
-    stock = fields.Float(related="product_id.qty_available")
-    location_qty = fields.Float(
-        compute="_compute_location_quantity", string="Location Qty"
-    )
+    price_unit = fields.Float("Price", digits="Product Price")
+    uom_id = fields.Many2one("uom.uom", "Unit")
+    stock = fields.Float(related="product_id.qty_available", string="Onhand")
+
     value = fields.Float(compute="_compute_value", string="Value", store=True)
-    lot_id = fields.Many2one(comodel_name="stock.lot")
+    lot_ids = fields.Many2many(
+        comodel_name="stock.lot", string="Lot", domain="[('id', 'in', lot_domain)]"
+    )
+    lot_domain = fields.Json(compute="_compute_lot_domain")
+    lot_qty = fields.Float(compute="_compute_location_quantity", string="Lot Qty")
 
     @api.depends("quantity", "price_unit")
     def _compute_value(self):
         for line in self:
             line.value = line.quantity * line.price_unit
 
+    def _get_location_quant(self, product_id: int, location_id: int):
+        return self.env["stock.quant"].search(
+            [
+                ("product_id", "=", product_id),
+                ("location_id", "=", location_id),
+            ]
+        )
+
     @api.depends("mrp_simple_id.location_src_id")
+    def _compute_lot_domain(self):
+        location_id = self.mrp_simple_id.location_src_id.id
+        for line in self:
+            stock_quant = self._get_location_quant(line.product_id.id, location_id)
+            line.lot_domain = stock_quant.mapped("lot_id").ids
+
+    @api.depends("lot_ids")
     def _compute_location_quantity(self):
         location_id = self.mrp_simple_id.location_src_id.id
         for line in self:
-            stock_quant = self.env["stock.quant"].search(
-                [
-                    ("product_id", "=", line.product_id.id),
-                    ("location_id", "=", location_id),
-                ]
-            )
-            line.location_qty = sum(stock_quant.mapped("quantity"))
+            if line.lot_ids:
+                line.lot_qty = sum(line.lot_ids.mapped("product_qty"))
+            else:
+                line.lot_qty = sum(
+                    self._get_location_quant(line.product_id.id, location_id).mapped(
+                        "quantity"
+                    )
+                )
 
     @api.onchange("product_id", "quantity")
     def onchange_product_id(self):

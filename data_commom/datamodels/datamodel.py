@@ -20,8 +20,9 @@ class LineData:
     product_uom_id: int
     location_id: int
     location_dest_id: int
-    lot_id: int
     quantity: float
+    lot_id: Optional[int] = None
+    lot_name: Optional[str] = None
     move_id: Optional[int] = None
 
 
@@ -37,6 +38,7 @@ class MoveData:
     picking_id: Optional[int] = None
     move_line_ids: Optional[List] = None
     state: str = "confirmed"
+    simple_mrp_id: Optional[int] = None
 
 
 @dataclass

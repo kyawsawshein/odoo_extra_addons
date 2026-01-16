@@ -15,7 +15,6 @@
                     <field name="consume_id" invisible="1" />
                     <button name="do_transfer" type="object" string="Confirm" class="oe_highlight" invisible="state!='draft'" />
                     <button name="compute_finit_price" type="object" string="Recompute prices" invvisible="state!='draft'" />
-                    <button type="object" name="add_multiple_lines" string="Add lines" />
                     <field name="state" widget="statusbar" />
                 </header>
                 <sheet>
@@ -52,8 +51,9 @@
                             <field name="product_out_ids" nolabel="1" readonly="state!='draft'">
                                 <list editable="bottom">
                                     <field name="product_id" options="{'no_create':True}"/>
-                                    <field name="stock" />
-                                    <field name="location_qty"/>
+                                    <field name="stock"/>
+                                    <field name="lot_ids" widget="many2many_tax_tags"/>
+                                    <field name="lot_qty"/>
                                     <field name="quantity" sum="1" />
                                     <field name="price_unit" readonly="1" force_save="1" />
                                     <field name="uom_id" />
