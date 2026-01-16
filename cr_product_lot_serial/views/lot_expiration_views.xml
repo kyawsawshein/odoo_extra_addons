@@ -23,9 +23,7 @@
                             <field name="expired_date"/>
                         </group>
                         <group>
-                            <div colspan="2">
-                                <field name="validation_picking"/>
-                            </div>
+                            <field name="validation_picking"/>
                         </group>
                     </group>
                     <group>

@@ -30,7 +30,6 @@ class Query:
         ANd aac.group_entries = {group_entries}
         AND aadl.status = '{status}'
         AND aadl.depreciation_date <= '{depreciation_date}'
-        AND aaa.id=35
     """
 
 
@@ -46,4 +45,4 @@ class DepreCols:
     MONTH = 8
     AMOUNT = 9
     VALUE = 10
-    COST  = 11
+    COST = 11

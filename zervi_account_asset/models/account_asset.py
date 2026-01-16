@@ -5,7 +5,7 @@ from datetime import date, datetime
 from itertools import groupby
 from typing import Dict, List
 
-from odoo import api, fields, models
+from odoo import _, api, fields, models
 from odoo.modules.registry import Registry
 from odoo.tools.misc import DEFAULT_SERVER_DATE_FORMAT
 

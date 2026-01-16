@@ -1,10 +1,8 @@
 import logging
-from datetime import datetime, timedelta
 from itertools import groupby
 from typing import Dict, List
 
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError
 
 from ..datamodels.datamodel import LineData, MoveData, PickingData
 
@@ -45,7 +43,7 @@ class LotDepreciation(models.Model):
         check_company=True,
         domain="[('usage', 'in', ('inventory'))]",
     )
-    validation_picking = fields.Boolean(default=False)
+    validation_picking = fields.Boolean(default=True)
     picking_type_code_domain = fields.Json(compute="_compute_picking_type_code_domain")
     expired_date = fields.Date()
 
@@ -56,10 +54,7 @@ class LotDepreciation(models.Model):
         # Get current location of the lot
         company_id = rule.company_id.id
         expired_date = rule.expired_date or fields.Date.today()
-        domain = [("expiration_date", "<=", expired_date)]
-
-        if company_id:
-            domain.append(("company_id", "=", company_id))
+        domain = [("expiration_date", "<=", expired_date), ("avg_cost", "<=", 0)]
 
         _logger.info("# get expired lot doamin %s ", domain)
         expired_lots = self.env["stock.lot"].search(domain)
