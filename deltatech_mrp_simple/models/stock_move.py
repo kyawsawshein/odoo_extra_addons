@@ -1,4 +1,5 @@
 import logging
+from typing import Dict
 
 from odoo import _, fields, models
 
@@ -17,7 +18,7 @@ class StockMove(models.Model):
 
     simple_mrp_id = fields.Many2one("mrp.simple", string="MRP Simple")
 
-    def _get_value_from_simple_mrp(self, quantity, at_date=None):
+    def _get_value_from_simple_mrp(self, quantity: float, at_date=None) -> Dict:
         if self.simple_mrp_id and self.is_in:
             return {
                 "value": self.price_unit * self.quantity,
@@ -29,6 +30,7 @@ class StockMove(models.Model):
             }
         return dict(VALUATION_DICT)
 
+    # overrided function
     def _get_value_data(
         self,
         forced_std_price=False,

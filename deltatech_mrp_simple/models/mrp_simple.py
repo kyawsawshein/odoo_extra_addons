@@ -1,5 +1,5 @@
 import logging
-from typing import List
+from typing import Dict, List
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
@@ -60,14 +60,15 @@ class MRPSimple(models.Model):
             self.picking_type_receipt_production.default_location_dest_id
         )
 
-    def add_move_out_line(
+    def add_move_line(
         self,
         line,
         location_id: int,
         location_dest_id: int,
         qty: float,
         lot_id: int = None,
-    ):
+        lot_name: str = "",
+    ) -> Dict:
         return LineData(
             product_id=line.product_id.id,
             product_uom_id=line.product_id.uom_id.id,
@@ -75,37 +76,24 @@ class MRPSimple(models.Model):
             location_dest_id=location_dest_id,
             lot_id=lot_id,
             quantity=qty,
+            lot_name=lot_name,
         ).__dict__
 
-    def add_move_in_line(
-        self,
-        line,
-        location_id: int,
-        location_dest_id: int,
-        qty: float,
-        lot_name: str = "",
-    ):
-        return LineData(
-            product_id=line.product_id.id,
-            product_uom_id=line.product_id.uom_id.id,
+    def add_move(self, line, location_id: int, location_dest_id: int) -> MoveData:
+        return MoveData(
             location_id=location_id,
             location_dest_id=location_dest_id,
-            lot_name=lot_name,
-            quantity=qty,
-        ).__dict__
+            product_id=line.product_id.id,
+            product_uom=line.uom_id.id,
+            product_uom_qty=line.quantity,
+            price_unit=line.price_unit,
+            simple_mrp_id=line.mrp_simple_id.id,
+        )
 
-    def _prepare_move_out(self, lines, location_id, location_dest_id) -> List:
+    def _prepare_move_out(self, lines, location_id: int, location_dest_id: int) -> List:
         moves = []
         for line in lines:
-            move = MoveData(
-                location_id=location_id,
-                location_dest_id=location_dest_id,
-                product_id=line.product_id.id,
-                product_uom=line.uom_id.id,
-                product_uom_qty=line.quantity,
-                price_unit=line.price_unit,
-                simple_mrp_id=line.mrp_simple_id.id,
-            )
+            move = self.add_move(line, location_id, location_dest_id)
             move_lines = []
             quantity = line.quantity
             if line.lot_ids:
@@ -115,7 +103,7 @@ class MRPSimple(models.Model):
                         (
                             0,
                             0,
-                            self.add_move_out_line(
+                            self.add_move_line(
                                 line,
                                 location_id,
                                 location_dest_id,
@@ -132,7 +120,7 @@ class MRPSimple(models.Model):
                     (
                         0,
                         0,
-                        self.add_move_out_line(
+                        self.add_move_line(
                             line, location_id, location_dest_id, qty=quantity
                         ),
                     )
@@ -141,38 +129,30 @@ class MRPSimple(models.Model):
             moves.append((0, 0, move.__dict__))
         return moves
 
-    def _prepare_move_in(self, lines, location_id, location_dest_id) -> List:
+    def _prepare_move_in(self, lines, location_id: int, location_dest_id: int) -> List:
         moves = []
         for line in lines:
-            move = MoveData(
-                picking_type_id=self.picking_type_receipt_production.id,
-                location_id=location_id,
-                location_dest_id=location_dest_id,
-                product_id=line.product_id.id,
-                product_uom=line.uom_id.id,
-                product_uom_qty=line.quantity,
-                price_unit=line.price_unit,
-                simple_mrp_id=line.mrp_simple_id.id,
-                move_line_ids=[
-                    (
-                        0,
-                        0,
-                        self.add_move_in_line(
-                            line,
-                            location_id,
-                            location_dest_id,
-                            qty=line.quantity,
-                            lot_name=line.lot_name,
-                        ),
-                    )
-                ],
-            )
+            move = self.add_move(line, location_id, location_dest_id)
+            move.picking_type_id = self.picking_type_receipt_production.id
+            move.move_line_ids = [
+                (
+                    0,
+                    0,
+                    self.add_move_line(
+                        line,
+                        location_id,
+                        location_dest_id,
+                        qty=line.quantity,
+                        lot_name=line.lot_name,
+                    ),
+                )
+            ]
             moves.append((0, 0, move.__dict__))
         return moves
 
     def prepare_picking(
         self, picking_type_id: int, location_id: int, location_dest_id: int
-    ):
+    ) -> PickingData:
         picking = PickingData(
             picking_type_id=picking_type_id,
             location_id=location_id,
@@ -181,7 +161,7 @@ class MRPSimple(models.Model):
         )
         return picking
 
-    def create_picking_lines_out(self, context):
+    def create_picking_lines_out(self, context: Dict):
         picking_type = self.picking_type_consume
         location_id = self.location_src_id.id
         location_dest_id = picking_type.default_location_dest_id.id
@@ -203,7 +183,7 @@ class MRPSimple(models.Model):
             .create(picking_data.__dict__)
         )
 
-    def create_picking_lines_in(self, context):
+    def create_picking_lines_in(self, context: Dict):
         picking_type = self.picking_type_receipt_production
         location_id = picking_type.default_location_src_id.id
         location_dest_id = self.location_dest_id.id

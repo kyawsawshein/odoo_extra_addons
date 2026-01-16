@@ -23,7 +23,7 @@ VALUATION_DICT = {
 class StockMove(models.Model):
     _inherit = "stock.move"
 
-    def _get_manual_value(self, quantity, at_date=None):
+    def _get_manual_value(self, quantity: float, at_date=None):
         valuation_data = dict(VALUATION_DICT)
         domain = Domain([("move_id", "=", self.id)])
         if at_date:

@@ -25,7 +25,7 @@ class AccountAssetAsset(models.Model):
     quantity = fields.Float(string="Quantity")
     lot_name = fields.Char(string="Lot Name")
 
-    def create_asset(self, vals: List[Dict], end_date: str = None):
+    def create_asset(self, vals: List[Dict], end_date: str = None) -> None:
         for val in vals:
             changed_vals = self.onchange_category_id_values(val["category_id"])
             val.update(changed_vals["value"])
@@ -48,7 +48,7 @@ class AccountAssetAsset(models.Model):
 
     def get_asset_depreciation(
         self, depreciation_date: str, group_entries: bool = False
-    ):
+    ) -> List:
         self.env.cr.execute(
             self._build_query(
                 depreciation_date=depreciation_date, group_entries=group_entries
@@ -60,7 +60,7 @@ class AccountAssetAsset(models.Model):
         self.env.cr.execute(Query.updaate_depreciation, (status, tuple(line_ids)))
 
     @staticmethod
-    def get_derpreciation_ids(depreciation_data):
+    def get_derpreciation_ids(depreciation_data:List) -> List:
         return [data[DepreCols.DEP_IDS] for data in depreciation_data]
 
     @api.model

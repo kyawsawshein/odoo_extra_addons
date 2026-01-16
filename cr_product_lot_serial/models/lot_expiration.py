@@ -25,7 +25,7 @@ class LotDepreciation(models.Model):
         "Operation Type",
         required=True,
         check_company=True,
-        domain="[('code', 'in', picking_type_code_domain)] if picking_type_code_domain else []",
+        domain="[('code', 'in', ('internal'))]",
     )
     company_id = fields.Many2one(
         "res.company",
