@@ -57,10 +57,11 @@ class AccountAssetAsset(models.Model):
         return self.env.cr.fetchall()
 
     def update_depreciation_line(self, status: str, line_ids: list):
+        _logger.info("# Update %s depreciation line count %s ", status, len(line_ids))
         self.env.cr.execute(Query.updaate_depreciation, (status, tuple(line_ids)))
 
     @staticmethod
-    def get_derpreciation_ids(depreciation_data:List) -> List:
+    def get_derpreciation_ids(depreciation_data: List) -> List:
         return [data[DepreCols.DEP_IDS] for data in depreciation_data]
 
     @api.model
@@ -108,19 +109,22 @@ class AccountAssetAsset(models.Model):
             if depreciation_ids:
                 self.update_depreciation_product_cost(depreciation)
                 if group_entries:
-                    asset_line.browse(depreciation_ids).create_grouped_move()
-                    # self.with_delay_entries(
-                    #     month=month,
-                    #     depreciation_ids=depreciation_ids,
-                    #     method="create_grouped_move",
-                    # )
+                    # asset_line.browse(depreciation_ids).create_grouped_move()
+                    self.with_delay_entries(
+                        month=month,
+                        depreciation_ids=depreciation_ids,
+                        method="create_grouped_move",
+                    )
                 else:
-                    asset_line.browse(depreciation_ids).create_move()
-                    # self.with_delay_entries(
-                    #     month=month,
-                    #     depreciation_ids=depreciation_ids,
-                    #     method="create_move",
-                    # )
+                    # asset_line.browse(depreciation_ids).create_move()
+                    self.with_delay_entries(
+                        month=month,
+                        depreciation_ids=depreciation_ids,
+                        method="create_move",
+                    )
+                self.update_depreciation_line(
+                    status=LineStatus.PROGRESS.code, line_ids=depreciation_ids
+                )
 
         # we re-evaluate the assets to determine if we can close them
         for asset in self:
@@ -225,15 +229,11 @@ class AccountAssetAsset(models.Model):
             depreciations = new_env["account.asset.depreciation.line"].browse(
                 json.loads(assets)
             )
-            # if method == "create_grouped_move":
-            #     moves = depreciations.create_grouped_move()
-            # else:
-            #     moves = depreciations.create_move()
-            moves = getattr(depreciations, method, None)
-            self.update_depreciation_line(
+            moves = getattr(depreciations, method)()
+            new_env["account.asset.asset"].update_depreciation_line(
                 status=LineStatus.DONE.code, line_ids=depreciations.ids
             )
-            _logger.info("# Done depreciation %s", moves)
+            _logger.info("# Done depreciation count %s", (moves))
 
 
 class AccountAssetDepreciationLine(models.Model):
