@@ -98,7 +98,6 @@ class AccountAssetAsset(models.Model):
     def _compute_journal_entries(
         self, asset_depreciations: list, group_entries: bool = False
     ):
-        asset_line = self.env["account.asset.depreciation.line"]
         for month, depreciation in groupby(
             sorted(asset_depreciations, key=lambda d: d[DepreCols.MONTH]),
             lambda d: d[DepreCols.MONTH],
@@ -109,14 +108,12 @@ class AccountAssetAsset(models.Model):
             if depreciation_ids:
                 self.update_depreciation_product_cost(depreciation)
                 if group_entries:
-                    # asset_line.browse(depreciation_ids).create_grouped_move()
                     self.with_delay_entries(
                         month=month,
                         depreciation_ids=depreciation_ids,
                         method="create_grouped_move",
                     )
                 else:
-                    # asset_line.browse(depreciation_ids).create_move()
                     self.with_delay_entries(
                         month=month,
                         depreciation_ids=depreciation_ids,
@@ -170,7 +167,6 @@ class AccountAssetAsset(models.Model):
                 value = 0.0
                 month = ""
                 for dep in product_dep:
-                    _logger.info("#Average dpe %s", dep)
                     value += dep[DepreCols.AMOUNT]
                     month = dep[DepreCols.MONTH]
 

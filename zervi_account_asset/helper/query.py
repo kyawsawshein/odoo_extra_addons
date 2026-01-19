@@ -13,8 +13,8 @@ class Query:
         ,       sm.id AS move_id
         ,       aadl.id
         ,       aadl.depreciation_date
-        ,       aaa.value - aadl.amount as amount
-        ,		aadl.remaining_value AS value
+        ,       aadl.amount as amount
+        ,       aadl.remaining_value AS value
         ,       aadl.remaining_value / aaa.quantity AS cost
         FROM account_asset_depreciation_line aadl
             INNER JOIN account_asset_asset aaa ON aaa.id=aadl.asset_id
