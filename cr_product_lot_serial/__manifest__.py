@@ -60,6 +60,7 @@
 """,
     'depends': ["base", "stock"],
     'data': [
+        "data/cron.xml",
         "security/ir.model.access.csv",
         "views/product_product_view.xml",
         "views/lot_expiration_views.xml",
