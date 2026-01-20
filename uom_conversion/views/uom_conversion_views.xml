@@ -51,12 +51,12 @@
                             <field name="product_out_ids" nolabel="1" readonly="state!='draft'">
                                 <list editable="bottom">
                                     <field name="product_id" options="{'no_create':True}"/>
-                                    <field name="stock"/>
+                                    <field name="stock" optional="hide"/>
                                     <field name="lot_ids" widget="many2many_tax_tags" options="{'no_create':True}"/>
                                     <field name="lot_qty"/>
                                     <field name="quantity" sum="1" />
-                                    <field name="price_unit" readonly="1" force_save="1" />
                                     <field name="uom_id" />
+                                    <field name="price_unit" readonly="1" force_save="1" />
                                     <field name="value" sum="1" />
                                 </list>
                             </field>

@@ -285,7 +285,9 @@ class UOMConversion(models.Model):
 
     def compute_finit_price(self):
         self.ensure_one()
-        if not len(self.product_out_ids) == len(self.product_in_ids):
+        if not len(self.product_out_ids.mapped("product_id")) == len(
+            self.product_in_ids.mapped("product_id")
+        ):
             raise UserError(_("Product doesn't match!"))
 
         for line in self.product_out_ids:
@@ -315,7 +317,7 @@ class MRPSimpleLineIn(models.Model):
     )
     price_unit = fields.Float("Unit Price", digits="Product Price")
     value = fields.Float(compute="_compute_value", string="Value", store=True)
-    lot_name = fields.Char("Lot/Serial Number Name")
+    lot_name = fields.Char("Lot Name")
 
     raw_product_domain = fields.Json(compute="_compute_raw_product_domain")
     expired_date = fields.Date()
