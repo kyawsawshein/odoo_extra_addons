@@ -1,6 +1,7 @@
-from odoo import fields, models
+from odoo import _, api, fields, models
 
 from ..datamodels.datamodel import ProductGrade
+
 PRODUCT_GRADE = [
     ("ga", "Grade A"),
     ("gb", "Grade B"),
@@ -22,7 +23,16 @@ class ProductProduct(models.Model):
 class StockLot(models.Model):
     _inherit = "stock.lot"
 
-    grade = fields.Selection(selection=ProductGrade.get_list(),
+    grade = fields.Selection(
+        selection=ProductGrade.get_list(),
         string="Grade",
         help="Product grade.",
-        default="ga",)
+        default="ga",
+    )
+
+    @api.onchange("product_expiry_alert")
+    def _onchange_expiry(self):
+        """Compute totals of multiple svl related values"""
+        for lot in self:
+            if lot.product_expiry_alert:
+                lot.grade = ProductGrade.GB.code

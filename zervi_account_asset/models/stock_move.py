@@ -53,10 +53,14 @@ class StockMove(models.Model):
         moves = super()._action_done(cancel_backorder=cancel_backorder)
         moves_in = moves.filtered(lambda m: m.is_in)
         moves_out = moves.filtered(lambda m: m.is_out)
-        for move in moves_in.filtered(lambda m: m.product_id.asset_category_id):
+        for move in moves_in.filtered(
+            lambda m: m.product_id.asset_category_id and m.price_unit > 0
+        ):
             move.asset_create()
 
-        for move in moves_out.filtered(lambda m: m.product_id.asset_category_id):
+        for move in moves_out.filtered(
+            lambda m: m.product_id.asset_category_id and m.price_unit > 0
+        ):
             move.update_assets()
 
         return moves

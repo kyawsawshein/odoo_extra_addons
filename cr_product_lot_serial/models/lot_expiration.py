@@ -85,6 +85,7 @@ class LotDepreciation(models.Model):
                 _logger.info("# Stock location %s", location.name)
                 picking = rule.create_picking(location.id, lot_quants)
                 picking.action_assign()
+                _logger.info("# Picking Internal trasfer %s ", picking)
                 if rule.validation_picking and picking.state == "assigned":
                     picking.button_validate()
 
@@ -105,7 +106,7 @@ class LotDepreciation(models.Model):
             product_id=line.product_id.id,
             product_uom=line.product_uom_id.id,
             product_uom_qty=line.quantity,
-            price_unit=line.lot_id.standard_price,
+            price_unit=line.lot_id.avg_cost,
             move_line_ids=[
                 (0, 0, self.add_move_line(line, location_id, location_dest_id))
             ],

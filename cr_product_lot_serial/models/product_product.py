@@ -8,5 +8,8 @@ class AccountMove(models.Model):
     _inherit = "product.product"
 
     lot_seril_number = fields.One2many(
-        "stock.lot", "product_id", string="Lots/Seril No."
+        "stock.lot",
+        "product_id",
+        string="Lots/Seril No.",
+        domain="[('product_qty', '>', 0)]",
     )

@@ -1,3 +1,3 @@
 from . import stock_move
-from . import mrp_simple
+from . import uom_conversion
 from . import product

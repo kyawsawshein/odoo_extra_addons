@@ -16,7 +16,7 @@ _logger = logging.getLogger(__name__)
 class StockMove(models.Model):
     _inherit = "stock.move"
 
-    simple_mrp_id = fields.Many2one("mrp.simple", string="MRP Simple")
+    simple_mrp_id = fields.Many2one("uom.conversion", string="UOM Conversion")
 
     def _get_value_from_simple_mrp(self, quantity: float, at_date=None) -> Dict:
         if self.simple_mrp_id and self.is_in:
@@ -38,7 +38,7 @@ class StockMove(models.Model):
         ignore_manual_update=False,
         add_extra_value=True,
     ):
-        _logger.info("Get simple mrp value")
+        _logger.info("Get uom conversion value")
         res = super()._get_value_data(
             forced_std_price, at_date, ignore_manual_update, add_extra_value
         )
