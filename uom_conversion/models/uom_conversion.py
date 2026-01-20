@@ -288,7 +288,13 @@ class UOMConversion(models.Model):
         if not len(self.product_out_ids.mapped("product_id")) == len(
             self.product_in_ids.mapped("product_id")
         ):
-            raise UserError(_("Product doesn't match!"))
+            raise UserError(
+                _(
+                    "Product doesn't match or duplicated! \n Product out ids : %s \n Product in ids :  %s",
+                    self.product_out_ids.mapped("product_id").ids,
+                    self.product_in_ids.mapped("product_id").ids,
+                )
+            )
 
         for line in self.product_out_ids:
             if line.quantity and line.quantity > line.lot_qty:
@@ -307,10 +313,7 @@ class MRPSimpleLineIn(models.Model):
     _description = "UOM Conversion Line IN"
 
     uom_conversion_id = fields.Many2one("uom.conversion")
-    product_id = fields.Many2one(
-        "product.product",
-        domain="[('default_code', 'in', raw_product_domain)] if raw_product_domain else []",
-    )
+    product_id = fields.Many2one("product.product")
     uom_id = fields.Many2one("uom.uom", string="Unit", related="product_id.uom_id")
     quantity = fields.Float(
         string="Quantity", digits="Product Unit of Measure", default=1
@@ -321,9 +324,6 @@ class MRPSimpleLineIn(models.Model):
 
     raw_product_domain = fields.Json(compute="_compute_raw_product_domain")
     expired_date = fields.Date()
-
-    def _compute_raw_product_domain(self):
-        self.raw_product_domain = []
 
     @api.onchange("product_id")
     def onchange_product_id(self):
@@ -372,7 +372,8 @@ class MRPSimpleLineOut(models.Model):
             [
                 ("product_id", "=", product_id),
                 ("location_id", "=", location_id),
-            ]
+            ],
+            order="lot_id asc",
         )
 
     @api.depends("uom_conversion_id.location_src_id")
@@ -380,7 +381,9 @@ class MRPSimpleLineOut(models.Model):
         location_id = self.uom_conversion_id.location_src_id.id
         for line in self:
             stock_quant = self._get_location_quant(line.product_id.id, location_id)
-            line.lot_domain = stock_quant.mapped("lot_id").ids
+            stock_lot = stock_quant.mapped("lot_id")
+            line.lot_domain = stock_lot.ids
+            line.lot_ids = line.lot_ids or stock_lot[:1]
 
     @api.depends("lot_ids")
     def _compute_location_quantity(self):
