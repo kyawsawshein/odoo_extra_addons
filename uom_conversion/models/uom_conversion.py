@@ -13,15 +13,7 @@ class UOMConversion(models.Model):
     _name = "uom.conversion"
     _description = "UOM Conversion"
 
-    name = fields.Char(string="Name", compute="_compute_name", store=True)
-    uom_sequence_id = fields.Many2one(
-        "ir.sequence",
-        "UOM Converse Sequence",
-        default=lambda self: self.env.ref(
-            "uom_conversion.sequence_uom_converse",
-            raise_if_not_found=False,
-        ),
-    )
+    name = fields.Char(string="Name", required=True, copy=False, default="New")
     consume_id = fields.Many2one("stock.picking", string="Consume", copy=False)
     receipt_id = fields.Many2one("stock.picking", string="Receipt", copy=False)
     state = fields.Selection([("draft", "Draft"), ("done", "Done")], default="draft")
@@ -70,6 +62,23 @@ class UOMConversion(models.Model):
                 uom.name = (
                     uom.uom_sequence_id.next_by_id() if uom.uom_sequence_id else False
                 )
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        uoms = self.browse()
+        for vals in vals_list:
+            if vals.get("name", "New") == "New":
+                seq_date = fields.Datetime.context_timestamp(
+                    self, fields.Datetime.now()
+                )
+                vals["name"] = (
+                    self.env["ir.sequence"].next_by_code(
+                        "uom.conversion.serial", sequence_date=seq_date
+                    )
+                    or "/"
+                )
+            uoms |= super().create(vals)
+        return uoms
 
     @api.onchange("picking_type_consume")
     def onchange_location(self):
@@ -348,7 +357,7 @@ class MRPSimpleLineOut(models.Model):
     _description = "UOM Conversion Line OUT"
 
     uom_conversion_id = fields.Many2one("uom.conversion")
-    product_id = fields.Many2one("product.product")
+    product_id = fields.Many2one("product.product", domain="raw_product_domain")
     uom_id = fields.Many2one("uom.uom", string="Unit", related="product_id.uom_id")
     quantity = fields.Float(
         string="Quantity", digits="Product Unit of Measure", default=1
@@ -361,11 +370,19 @@ class MRPSimpleLineOut(models.Model):
     )
     lot_domain = fields.Json(compute="_compute_lot_domain")
     lot_qty = fields.Float(compute="_compute_location_quantity", string="Lot Qty")
+    raw_product_domain = fields.Json(compute="_compute_raw_product_domain")
 
     @api.depends("quantity", "price_unit")
     def _compute_value(self):
         for line in self:
             line.value = line.quantity * line.price_unit
+
+    def _compute_raw_product_domain(self):
+        raw_prodcut_ids = []
+        for line in self.uom_conversion_id.product_in_ids:
+            raw_prodcut_ids.append(line.product_id.raw_product_id.id)
+
+        self.raw_product_domain = [("id", "in", raw_prodcut_ids)]
 
     def _get_location_quant(self, product_id: int, location_id: int):
         return self.env["stock.quant"].search(
@@ -376,7 +393,7 @@ class MRPSimpleLineOut(models.Model):
             order="lot_id asc",
         )
 
-    @api.depends("uom_conversion_id.location_src_id")
+    @api.depends("uom_conversion_id.location_src_id", "product_id")
     def _compute_lot_domain(self):
         location_id = self.uom_conversion_id.location_src_id.id
         for line in self:

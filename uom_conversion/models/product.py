@@ -5,5 +5,5 @@ class ProductTemplate(models.Model):
     _inherit = "product.template"
 
     raw_product_id = fields.Many2one(
-        comodel_name="product.template", string="Raw Product"
+        comodel_name="product.product", string="Raw Product"
     )
