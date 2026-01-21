@@ -22,10 +22,9 @@ class Query:
             LEFT JOIN product_product pp ON pp.id=aaa.product_id
             LEFT JOIN product_template pt ON pt.id=pp.product_tmpl_id
             LEFT JOIN product_category pc ON pc.id=pt.categ_id
+            LEFT JOIN stock_lot st ON st.name=aaa.lot_name AND st.product_id=aaa.product_id
             LEFT JOIN stock_picking sp ON sp.name=aaa.code
-            LEFT JOIN stock_move_line sml ON sml.picking_id=sp.id
-            LEFT JOIN stock_move sm ON sm.id=sml.move_id
-            LEFT JOIN stock_lot st ON st.id=sml.lot_id
+            LEFT JOIN stock_move sm ON sm.picking_id=sp.id AND sm.product_id=aaa.product_id
         WHERE aaa.state='open' AND move_check=false
         ANd aac.group_entries = {group_entries}
         AND aadl.status = '{status}'
