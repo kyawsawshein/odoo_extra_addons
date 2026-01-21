@@ -38,7 +38,7 @@ class MoveData:
     picking_id: Optional[int] = None
     move_line_ids: Optional[List] = None
     state: str = "confirmed"
-    simple_mrp_id: Optional[int] = None
+    uom_conversion_id: Optional[int] = None
 
 
 @dataclass

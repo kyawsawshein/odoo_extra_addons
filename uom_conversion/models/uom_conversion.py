@@ -108,7 +108,7 @@ class UOMConversion(models.Model):
             product_uom=line.uom_id.id,
             product_uom_qty=line.quantity,
             price_unit=line.price_unit,
-            simple_mrp_id=line.uom_conversion_id.id,
+            uom_conversion_id=line.uom_conversion_id.id,
         )
 
     def _prepare_move_out(self, lines, location_id: int, location_dest_id: int) -> List:
