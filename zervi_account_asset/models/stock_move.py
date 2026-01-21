@@ -107,7 +107,7 @@ class StockMove(models.Model):
             raise UserError(_("Not enough assets found."))
         return remove_assets
 
-    def update_assets(self):
+    def get_assets(self, code: str = None):
         lot_names = []
         for line in self.move_line_ids:
             if line.lot_id:
@@ -120,6 +120,9 @@ class StockMove(models.Model):
             ("quantity", ">", 0),
         ]
 
+        if code:
+            domain.append(("code", "in", code))
+
         if lot_names:
             domain.append(("lot_name", "in", lot_names))
 
@@ -128,6 +131,12 @@ class StockMove(models.Model):
         assets = self.env["account.asset.asset"].search(
             domain, limit=asset_qty, order="method_end asc"
         )
+
+        return assets
+
+    def update_assets(self):
+        asset_qty = self.product_uom_qty
+        assets = self.get_assets()
         if not assets:
             raise UserError(_("No assets found."))
 
