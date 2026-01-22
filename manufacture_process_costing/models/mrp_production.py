@@ -24,6 +24,13 @@ import logging
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
+from ..datamodels.datamodel import (
+    LabourCostData,
+    MaterialCostData,
+    OverheadCostData,
+    default_ids,
+)
+
 _logger = logging.getLogger(__name__)
 
 
@@ -108,64 +115,47 @@ class MrpProduction(models.Model):
     def _onchange_bom_id(self):
         """Writes data to material_cost_ids, labour_cost_ids and
         overhead_cost_ids when change in bom_id"""
-        self.write({"material_cost_ids": [(5, 0)]})
         self.write(
             {
                 "material_cost_ids": [
-                    (
-                        0,
-                        0,
-                        {
-                            "production_material_id": self.id,
-                            "material_cost_id": self.bom_id.id,
-                            "product_id": rec.product_id.id,
-                            "planned_qty": rec.planned_qty,
-                            "uom_id": rec.uom_id.id,
-                            "cost_unit": rec.cost_unit,
-                        },
+                    default_ids(
+                        MaterialCostData(
+                            production_material_id=self.id,
+                            material_cost_id=self.bom_id.id,
+                            product_id=rec.product_id.id,
+                            planned_qty=rec.planned_qty,
+                            uom_id=rec.uom_id.id,
+                            cost_unit=rec.cost_unit,
+                        )
                     )
                     for rec in self.bom_id.material_cost_ids
-                ]
-            }
-        )
-        self.write({"labour_cost_ids": [(5, 0)]})
-        self.write(
-            {
+                ],
                 "labour_cost_ids": [
-                    (
-                        0,
-                        0,
-                        {
-                            "production_labour_id": self.id,
-                            "labour_cost_id": rec.id,
-                            "operation": rec.operation,
-                            "work_center_id": rec.work_center_id.id,
-                            "planned_minute": rec.planned_minute,
-                            "cost_minute": rec.cost_minute,
-                        },
+                    default_ids(
+                        LabourCostData(
+                            production_labour_id=self.id,
+                            labour_cost_id=rec.id,
+                            operation=rec.operation,
+                            work_center_id=rec.work_center_id.id,
+                            planned_minute=rec.planned_minute,
+                            cost_minute=rec.cost_minute,
+                        )
                     )
                     for rec in self.bom_id.labour_cost_ids
-                ]
-            }
-        )
-        self.write({"overhead_cost_ids": [(5, 0)]})
-        self.write(
-            {
+                ],
                 "overhead_cost_ids": [
-                    (
-                        0,
-                        0,
-                        {
-                            "production_overhead_id": self.id,
-                            "overhead_cost_id": rec.id,
-                            "operation": rec.operation,
-                            "work_center_id": rec.work_center_id.id,
-                            "planned_minute": rec.planned_minute,
-                            "cost_minute": rec.cost_minute,
-                        },
+                    default_ids(
+                        OverheadCostData(
+                            production_overhead_id=self.id,
+                            overhead_cost_id=rec.id,
+                            operation=rec.operation,
+                            work_center_id=rec.work_center_id.id,
+                            planned_minute=rec.planned_minute,
+                            cost_minute=rec.cost_minute,
+                        )
                     )
                     for rec in self.bom_id.overhead_cost_ids
-                ]
+                ],
             }
         )
 

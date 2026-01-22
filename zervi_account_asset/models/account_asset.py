@@ -9,8 +9,8 @@ from odoo import _, api, fields, models
 from odoo.modules.registry import Registry
 from odoo.tools.misc import DEFAULT_SERVER_DATE_FORMAT
 
+from ...data_commom.datamodels.datamodel import ProductValue
 from ..datamodels.asset_data import LineStatus, State
-from ..datamodels.product_data import ProductValue
 from ..helper.query import DepreCols, Query
 
 _logger = logging.getLogger(__name__)

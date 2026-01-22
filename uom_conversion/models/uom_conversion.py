@@ -93,8 +93,7 @@ class UOMConversion(models.Model):
     def add_move_line(
         self,
         line,
-        location_id: int,
-        location_dest_id: int,
+        picking: PickingData,
         qty: float,
         lot_id: int = None,
         lot_name: str = "",
@@ -102,17 +101,17 @@ class UOMConversion(models.Model):
         return LineData(
             product_id=line.product_id.id,
             product_uom_id=line.product_id.uom_id.id,
-            location_id=location_id,
-            location_dest_id=location_dest_id,
+            location_id=picking.location_id,
+            location_dest_id=picking.location_dest_id,
             lot_id=lot_id,
             quantity=qty,
             lot_name=lot_name,
         ).__dict__
 
-    def add_move(self, line, location_id: int, location_dest_id: int) -> MoveData:
+    def add_move(self, line, picking: PickingData) -> MoveData:
         return MoveData(
-            location_id=location_id,
-            location_dest_id=location_dest_id,
+            location_id=picking.location_id,
+            location_dest_id=picking.location_dest_id,
             product_id=line.product_id.id,
             product_uom=line.uom_id.id,
             product_uom_qty=line.quantity,
@@ -120,10 +119,10 @@ class UOMConversion(models.Model):
             uom_conversion_id=line.uom_conversion_id.id,
         )
 
-    def _prepare_move_out(self, lines, location_id: int, location_dest_id: int) -> List:
+    def _prepare_move_out(self, lines, picking: PickingData) -> List:
         moves = []
         for line in lines:
-            move = self.add_move(line, location_id, location_dest_id)
+            move = self.add_move(line, picking)
             move_lines = []
             quantity = line.quantity
             if line.lot_ids:
@@ -135,8 +134,7 @@ class UOMConversion(models.Model):
                             0,
                             self.add_move_line(
                                 line,
-                                location_id,
-                                location_dest_id,
+                                picking,
                                 qty=qty,
                                 lot_id=lot.id,
                             ),
@@ -150,28 +148,25 @@ class UOMConversion(models.Model):
                     (
                         0,
                         0,
-                        self.add_move_line(
-                            line, location_id, location_dest_id, qty=quantity
-                        ),
+                        self.add_move_line(line, picking, qty=quantity),
                     )
                 )
             move.move_line_ids = move_lines
             moves.append((0, 0, move.__dict__))
         return moves
 
-    def _prepare_move_in(self, lines, location_id: int, location_dest_id: int) -> List:
+    def _prepare_move_in(self, lines, picking: PickingData) -> List:
         moves = []
         for line in lines:
-            move = self.add_move(line, location_id, location_dest_id)
-            move.picking_type_id = self.picking_type_receipt_production.id
+            move = self.add_move(line, picking)
+            move.picking_type_id = picking.picking_type_id
             move.move_line_ids = [
                 (
                     0,
                     0,
                     self.add_move_line(
                         line,
-                        location_id,
-                        location_dest_id,
+                        picking,
                         qty=line.quantity,
                         lot_name=line.lot_name,
                     ),
@@ -201,11 +196,11 @@ class UOMConversion(models.Model):
             location_id=location_id,
             location_dest_id=location_dest_id,
         )
-        picking_data.move_ids = self._prepare_move_out(
+        moves = self._prepare_move_out(
             lines=self.product_out_ids,
-            location_id=location_id,
-            location_dest_id=location_dest_id,
+            picking=picking_data,
         )
+        picking_data.move_ids = moves
         _logger.info("# ===== Picking Data Out : %s ", picking_data)
         return (
             self.env["stock.picking"]
@@ -222,11 +217,11 @@ class UOMConversion(models.Model):
             location_id=location_id,
             location_dest_id=location_dest_id,
         )
-        picking_data.move_ids = self._prepare_move_in(
+        moves = self._prepare_move_in(
             lines=self.product_in_ids,
-            location_id=location_id,
-            location_dest_id=location_dest_id,
+            picking=picking_data,
         )
+        picking_data.move_ids = moves
         _logger.info("# ===== Picking Data In : %s ", picking_data)
         return (
             self.env["stock.picking"]

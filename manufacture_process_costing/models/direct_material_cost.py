@@ -63,12 +63,12 @@ class DirectMaterialCost(models.Model):
 
     @api.depends("planned_qty", "cost_unit")
     def _compute_total_cost(self):
-        """Calculate total_cost based on planned_qty and cost_unit"""
+        """Calculate material total_cost based on planned_qty and cost_unit"""
         for rec in self:
             rec.total_cost = rec.planned_qty * rec.cost_unit
 
     @api.depends("actual_quantity", "cost_unit")
     def _compute_total_actual_cost(self):
-        """Calculate total_actual_cost based on actual_quantity and cost_unit"""
+        """Calculate material total_actual_cost based on actual_quantity and cost_unit"""
         for rec in self:
             rec.total_actual_cost = rec.actual_quantity * rec.cost_unit

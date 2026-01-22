@@ -19,6 +19,11 @@
 #    If not, see <http://www.gnu.org/licenses/>.
 #
 #############################################################################
+
+# pylint: disable=R0801
+
+# R0801: Similar lines in 2 files
+
 import logging
 
 from odoo import api, fields, models

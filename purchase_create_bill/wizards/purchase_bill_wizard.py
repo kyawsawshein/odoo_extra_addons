@@ -35,7 +35,7 @@ class PurchaseCreateBillWizard(models.TransientModel):
                 waiting_lines = []
 
                 for line in purchase_order.order_line:
-                    if not line.product_id or line.product_qty <= 0:
+                    if line.product_qty <= 0 or not line.product_id:
                         continue
 
                     if line.product_id.purchase_method == "purchase":

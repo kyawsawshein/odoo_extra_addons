@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import fields, models
 
 
@@ -10,7 +8,8 @@ class AssetDepreciationConfirmationWizard(models.TransientModel):
     date = fields.Date(
         "Account Date",
         required=True,
-        help="Choose the period for which you want to automatically post the depreciation lines of running assets",
+        help="Choose the period for which you want to automatically"
+        "post the depreciation lines of running assets",
         default=fields.Date.context_today,
     )
 

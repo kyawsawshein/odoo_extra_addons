@@ -46,5 +46,5 @@ class PickingData:
     picking_type_id: int
     date_done: date
     location_id: int
-    location_dest_id: Optional[int] = None
+    location_dest_id: int
     move_ids: Optional[List] = None

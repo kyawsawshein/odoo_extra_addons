@@ -21,6 +21,13 @@
 #############################################################################
 from odoo import api, fields, models
 
+from ..datamodels.datamodel import (
+    default_ids,
+    MaterialCostData,
+    LabourCostData,
+    OverheadCostData,
+)
+
 
 class MrpBom(models.Model):
     """This class inherits the existing class mrp.bom to add the
@@ -65,20 +72,17 @@ class MrpBom(models.Model):
     @api.onchange("bom_line_ids")
     def _onchange_bom_line_ids(self):
         """write into material_cost_ids when bom_line_ids is changed"""
-        self.write({"material_cost_ids": [(5, 0)]})
         self.write(
             {
                 "material_cost_ids": [
-                    (
-                        0,
-                        0,
-                        {
-                            "material_cost_id": self.id,
-                            "product_id": rec.product_id.id,
-                            "planned_qty": rec.product_qty,
-                            "uom_id": rec.product_id.uom_id.id,
-                            "cost_unit": rec.product_id.lst_price,
-                        },
+                    default_ids(
+                        MaterialCostData(
+                            material_cost_id=self.id,
+                            product_id=rec.product_id.id,
+                            planned_qty=rec.product_qty,
+                            uom_id=rec.product_id.uom_id.id,
+                            cost_unit=rec.product_id.lst_price,
+                        )
                     )
                     for rec in self.bom_line_ids
                 ]
@@ -94,79 +98,59 @@ class MrpBom(models.Model):
             "manufacture_process_costing.process_costing_method"
         )
         if process_value == "work-center":
-            self.write({"labour_cost_ids": [(5, 0)]})
             self.write(
                 {
                     "labour_cost_ids": [
-                        (
-                            0,
-                            0,
-                            {
-                                "labour_cost_id": self.id,
-                                "operation": rec.name,
-                                "work_center_id": rec.workcenter_id.id,
-                                "planned_minute": rec.time_cycle,
-                                "cost_minute": rec.workcenter_id.labour_cost,
-                            },
+                        default_ids(
+                            LabourCostData(
+                                labour_cost_id=self.id,
+                                operation=rec.name,
+                                work_center_id=rec.workcenter_id.id,
+                                planned_minute=rec.time_cycle,
+                                cost_minute=rec.workcenter_id.labour_cost,
+                            )
                         )
                         for rec in self.operation_ids
-                    ]
-                }
-            )
-            self.write({"overhead_cost_ids": [(5, 0)]})
-            self.write(
-                {
+                    ],
                     "overhead_cost_ids": [
-                        (
-                            0,
-                            0,
-                            {
-                                "overhead_cost_id": self.id,
-                                "operation": rec.name,
-                                "work_center_id": rec.workcenter_id.id,
-                                "planned_minute": rec.time_cycle,
-                                "cost_minute": rec.workcenter_id.overhead_cost,
-                            },
+                        default_ids(
+                            OverheadCostData(
+                                overhead_cost_id=self.id,
+                                operation=rec.name,
+                                work_center_id=rec.workcenter_id.id,
+                                planned_minute=rec.time_cycle,
+                                cost_minute=rec.workcenter_id.overhead_cost,
+                            )
                         )
                         for rec in self.operation_ids
-                    ]
+                    ],
                 }
             )
         else:
-            self.write({"labour_cost_ids": [(5, 0)]})
             self.write(
                 {
                     "labour_cost_ids": [
-                        (
-                            0,
-                            0,
-                            {
-                                "labour_cost_id": self.id,
-                                "operation": rec.name,
-                                "work_center_id": rec.workcenter_id.id,
-                                "planned_minute": rec.time_cycle,
-                            },
+                        default_ids(
+                            LabourCostData(
+                                labour_cost_id=self.id,
+                                operation=rec.name,
+                                work_center_id=rec.workcenter_id.id,
+                                planned_minute=rec.time_cycle,
+                            )
                         )
                         for rec in self.operation_ids
-                    ]
-                }
-            )
-            self.write({"overhead_cost_ids": [(5, 0)]})
-            self.write(
-                {
+                    ],
                     "overhead_cost_ids": [
-                        (
-                            0,
-                            0,
-                            {
-                                "overhead_cost_id": self.id,
-                                "operation": rec.name,
-                                "work_center_id": rec.workcenter_id.id,
-                                "planned_minute": rec.time_cycle,
-                            },
+                        default_ids(
+                            OverheadCostData(
+                                overhead_cost_id=self.id,
+                                operation=rec.name,
+                                work_center_id=rec.workcenter_id.id,
+                                planned_minute=rec.time_cycle,
+                            )
                         )
                         for rec in self.operation_ids
-                    ]
+                    ],
                 }
             )
 

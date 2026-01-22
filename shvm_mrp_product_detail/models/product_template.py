@@ -1,7 +1,4 @@
-# -*- coding: utf-8 -*-
-# Email: sales@creyox.com
-
-from odoo import _, api, fields, models
+from odoo import fields, models
 
 
 class ProductTemplate(models.Model):

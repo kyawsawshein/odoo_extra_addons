@@ -4,7 +4,7 @@ from typing import Dict, List
 
 from odoo import _, api, fields, models
 
-from ..datamodels.datamodel import LineData, MoveData, PickingData
+from ...data_commom.datamodels.datamodel import LineData, MoveData, PickingData
 
 _logger = logging.getLogger(__name__)
 
