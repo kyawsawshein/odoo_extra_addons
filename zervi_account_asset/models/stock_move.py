@@ -54,12 +54,12 @@ class StockMove(models.Model):
         moves_in = moves.filtered(lambda m: m.is_in)
         moves_out = moves.filtered(lambda m: m.is_out)
         for move in moves_in.filtered(
-            lambda m: m.product_id.asset_category_id and m.price_unit > 0
+            lambda m: m.product_id.asset_category_id and m.value > 0
         ):
             move.asset_create()
 
         for move in moves_out.filtered(
-            lambda m: m.product_id.asset_category_id and m.price_unit > 0
+            lambda m: m.product_id.asset_category_id and m.value > 0
         ):
             move.update_assets()
 
