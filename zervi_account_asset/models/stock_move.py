@@ -6,18 +6,11 @@ from typing import Dict, List
 
 from odoo import _, models
 from odoo.exceptions import UserError
-from odoo.fields import Domain
 from odoo.tools.misc import DEFAULT_SERVER_DATE_FORMAT
 
 from ..datamodels.asset_data import Assets, State
 
 _logger = logging.getLogger(__name__)
-
-VALUATION_DICT = {
-    "value": 0,
-    "quantity": 0,
-    "description": False,
-}
 
 
 class StockMove(models.Model):
@@ -60,7 +53,7 @@ class StockMove(models.Model):
                         lot_name=line.lot_id.name or line.lot_name,
                     ).__dict__
                 )
-            self.env["account.asset.asset"].create_asset(vals, end_date)
+                self.env["account.asset.asset"].create_asset(vals, end_date)
 
     def get_remove_value(self, assets: List, asset_qty: float) -> Dict:
         remove_assets = defaultdict(dict)

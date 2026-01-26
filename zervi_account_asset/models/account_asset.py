@@ -232,6 +232,29 @@ class AccountAssetAsset(models.Model):
             )
             _logger.info("# Done depreciation count %s", (moves))
 
+    def validate_close(self):
+        for rec in self:
+            if rec.state == State.OPEN.code and rec.currency_id.is_zero(
+                rec.value_residual
+            ):
+                rec.write({"state": State.CLOSE.code})
+
+    def write(self, vals):
+        res = super().write(vals)
+        self.validate_close()
+        return res
+
+    @api.depends(
+        "value",
+        "salvage_value",
+        "depreciation_line_ids.move_check",
+        "depreciation_line_ids.amount",
+    )
+    def _amount_residual(self):
+        res = super()._amount_residual()
+        self.validate_close()
+        return res
+
 
 class AccountAssetDepreciationLine(models.Model):
     _inherit = "account.asset.depreciation.line"

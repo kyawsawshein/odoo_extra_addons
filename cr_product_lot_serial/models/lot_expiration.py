@@ -1,10 +1,13 @@
 import logging
+from datetime import datetime, time
 from itertools import groupby
 from typing import Dict, List
 
 from odoo import _, api, fields, models
 
 from ...data_commom.datamodels.datamodel import LineData, MoveData, PickingData
+from ..datamodels.datamodel import LocationType
+from ..helpers.query import ExpCols, Query
 
 _logger = logging.getLogger(__name__)
 
@@ -50,25 +53,21 @@ class LotDepreciation(models.Model):
     def _compute_picking_type_code_domain(self):
         self.picking_type_code_domain = [("code", "in", ("internal"))]
 
-    def get_expired_lots(self, rule):
-        # Get current location of the lot
-        company_id = rule.company_id.id
+    def _build_query(self, rule) -> str:
+        company = rule.company_id or self.env.company
         expired_date = rule.expired_date or fields.Date.today()
-        domain = [("expiration_date", "<=", expired_date), ("avg_cost", "<=", 0)]
+        query = Query.get_lot_expiration.format(
+            company_id=company.id,
+            location_type=(LocationType.INTERNAL.code, LocationType.TRANSIT.code),
+            lot_valuated=True,
+            expiration_date=datetime.combine(expired_date, time.max),
+        )
+        return query
 
-        _logger.info("# get expired lot doamin %s ", domain)
-        expired_lots = self.env["stock.lot"].search(domain)
-        quant_domain = [
-            ("lot_id", "in", expired_lots.ids),
-            ("quantity", ">", 0),
-            ("location_id.usage", "=", "internal"),
-        ]
-        _logger.info("# domain stock quant %s ", quant_domain)
-        if company_id:
-            quant_domain.append(("company_id", "=", company_id))
-
-        lot_stock_quants = self.env["stock.quant"].search(quant_domain)
-        return lot_stock_quants
+    def get_expired_lots(self, rule) -> List:
+        # Get current location of the lot
+        self.env.cr.execute(self._build_query(rule=rule))
+        return self.env.cr.fetchall()
 
     @api.model
     def _cron_lot_expired_move(self):
@@ -77,13 +76,12 @@ class LotDepreciation(models.Model):
     @api.model
     def do_transfer(self):
         for rule in self.search([("active", "=", True)]):
-            expired_lot_quants = self.get_expired_lots(rule)
+            expired_lot = self.get_expired_lots(rule)
             for location, lot_quants in groupby(
-                sorted(expired_lot_quants, key=lambda q: q.location_id),
-                key=lambda q: q.location_id,
+                sorted(expired_lot, key=lambda q: q[ExpCols.LOCATION]),
+                key=lambda q: q[ExpCols.LOCATION],
             ):
-                _logger.info("# Stock location %s", location.name)
-                picking = rule.create_picking(location.id, lot_quants)
+                picking = rule.create_picking(location, lot_quants)
                 picking.action_assign()
                 _logger.info("# Picking Internal trasfer %s ", picking)
                 if rule.validation_picking and picking.state == "assigned":
@@ -91,22 +89,22 @@ class LotDepreciation(models.Model):
 
     def add_move_line(self, line, location_id: int, location_dest_id: int):
         return LineData(
-            product_id=line.product_id.id,
-            product_uom_id=line.product_id.uom_id.id,
+            product_id=line[ExpCols.PRODUCT_ID],
+            product_uom_id=line[ExpCols.UOM_ID],
             location_id=location_id,
             location_dest_id=location_dest_id,
-            lot_id=line.lot_id.id,
-            quantity=line.quantity,
+            lot_id=line[ExpCols.LOT_ID],
+            quantity=line[ExpCols.QUANTITY],
         ).__dict__
 
     def _prepare_move(self, line, location_id, location_dest_id) -> Dict:
         move = MoveData(
             location_id=location_id,
             location_dest_id=location_dest_id,
-            product_id=line.product_id.id,
-            product_uom=line.product_uom_id.id,
-            product_uom_qty=line.quantity,
-            price_unit=line.lot_id.avg_cost,
+            product_id=line[ExpCols.PRODUCT_ID],
+            product_uom=line[ExpCols.UOM_ID],
+            product_uom_qty=line[ExpCols.QUANTITY],
+            price_unit=line[ExpCols.AVG_COST],
             move_line_ids=[
                 (0, 0, self.add_move_line(line, location_id, location_dest_id))
             ],
