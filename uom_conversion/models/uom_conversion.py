@@ -322,7 +322,7 @@ class MRPSimpleLineIn(models.Model):
     quantity = fields.Float(
         string="Quantity", digits="Product Unit of Measure", default=1
     )
-    price_unit = fields.Float("Unit Price", digits="Product Price")
+    price_unit = fields.Float("Unit Price")
     value = fields.Float(compute="_compute_value", string="Value", store=True)
     lot_name = fields.Char("Lot Name")
 

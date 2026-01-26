@@ -16,6 +16,10 @@
                 <field name="status" readonly="True"/>
             </xpath>
 
+            <xpath expr="//field[@name='depreciation_line_ids']/form//group/field[@name='move_check']" position="after">
+                <field name="status" readonly="True"/>
+            </xpath>
+
         </field>
     </record>
 
