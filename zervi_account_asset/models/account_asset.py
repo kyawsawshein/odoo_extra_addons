@@ -129,25 +129,25 @@ class AccountAssetAsset(models.Model):
                 asset.state = State.CLOSE.code
 
     def create_product_depreciation_cost(
-        self, product_id: int, value: float, move_id: int = None, lot_id: int = None
+        self,
+        product_id: int,
+        value: float,
+        lot_id: int = None,
+        description: str = "",
     ):
         self.env["product.value"].sudo().create(
             ProductValue(
                 product_id=product_id,
                 value=value,
                 date=fields.Datetime.now(),
-                description=_(
-                    "Depreciation price updated %(new_price)s by %(user)s",
-                    new_price=value,
-                    user=self.env.user.name,
-                ),
+                description=description,
                 lot_id=lot_id,
-                move_id=move_id,
                 company_id=self.env.company.id,
             ).__dict__
         )
 
     def update_depreciation_product_cost(self, depreciations: List):
+        user = self.env.user.name
         for product_method, product_dep in groupby(
             depreciations,
             key=lambda x: (x[DepreCols.PRODUCT], x[DepreCols.COST_METHOD]),
@@ -155,11 +155,12 @@ class AccountAssetAsset(models.Model):
             products = []
             if product_method[1] == "fifo":
                 for dep in product_dep:
+                    description = f"Depreciaton {product_method[1]} price update {dep[DepreCols.COST]} for depreciated value {dep[DepreCols.AMOUNT]} by {user}"
                     self.create_product_depreciation_cost(
                         product_id=dep[DepreCols.PRODUCT],
                         value=dep[DepreCols.COST],
                         lot_id=dep[DepreCols.LOT_ID],
-                        move_id=dep[DepreCols.MOVE_ID],
+                        description=description,
                     )
                 products.append(product_method[0])
                 _logger.info("Updated product fifo price for depreciation.")
@@ -182,9 +183,9 @@ class AccountAssetAsset(models.Model):
                 if quantity:
                     price = product.standard_price - (value / (quantity or 1))
                     _logger.info(f"Product {product.name} price {price}")
-
+                    description = f"Depreciaton {product_method[1]} price update {price} for depreciated value {value} by {user}"
                     self.create_product_depreciation_cost(
-                        product_id=product.id, value=price
+                        product_id=product.id, value=price, description=description
                     )
                     products.append(product.id)
                     _logger.info("Updated product price for depreciation.")

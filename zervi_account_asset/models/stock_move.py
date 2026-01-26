@@ -23,31 +23,6 @@ VALUATION_DICT = {
 class StockMove(models.Model):
     _inherit = "stock.move"
 
-    def _get_manual_value(self, quantity: float, at_date=None):
-        valuation_data = dict(VALUATION_DICT)
-        domain = Domain([("move_id", "=", self.id)])
-        if at_date:
-            domain &= Domain([("date", "<=", at_date)])
-        manual_value = self.env["product.value"].search(
-            domain, order="date desc, id desc", limit=1
-        )
-        if manual_value:
-            valuation_data["value"] = (
-                manual_value.value * manual_value.lot_id.product_qty
-                if manual_value.lot_id
-                else manual_value.value
-            )
-            valuation_data["quantity"] = quantity
-            description = _(
-                "Adjusted on %(date)s by %(user)s",
-                date=manual_value.date,
-                user=manual_value.user_id.name,
-            )
-            if manual_value.description:
-                description += "\n" + manual_value.description
-            valuation_data["description"] = description
-        return valuation_data
-
     # overrided base function
     def _action_done(self, cancel_backorder=False):
         moves = super()._action_done(cancel_backorder=cancel_backorder)

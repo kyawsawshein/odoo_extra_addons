@@ -5,7 +5,7 @@ class Query:
 
     get_depreciations = """
         SELECT  aaa.product_id
-        ,       pc.property_cost_method->>'{company_id}'
+        ,       pc.property_cost_method->>'{company_id}' AS cost_method
         ,       pt.company_id
         ,       aaa.code
         ,       aac.id AS category_id
