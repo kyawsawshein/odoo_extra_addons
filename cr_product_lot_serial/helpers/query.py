@@ -13,10 +13,11 @@ class Query:
             INNER JOIN stock_location sl ON sl.id=sq.location_id
             INNER JOIN stock_lot st ON st.id=sq.lot_id
         WHERE sq.company_id = {company_id} AND sl.usage IN {location_type}
-        AND st.avg_cost <= 0
+        AND COALESCE((st.standard_price->>'1')::NUMERIC, 0) <= 0
         AND pt.lot_valuated = {lot_valuated}
         AND st.expiration_date < '{expiration_date}'
     """
+
 
 class ExpCols:
     LOCATION = 0
