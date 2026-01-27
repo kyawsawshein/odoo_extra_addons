@@ -12,7 +12,7 @@ from odoo.tools.misc import DEFAULT_SERVER_DATE_FORMAT
 
 from ...data_commom.datamodels.datamodel import ProductValue
 from ..datamodels.asset_data import LineStatus, State
-from ..helper.query import DepreCols, Query
+from ..helper.query import DepCols, Query
 
 _logger = logging.getLogger(__name__)
 
@@ -86,7 +86,7 @@ class AccountAssetAsset(models.Model):
 
     @staticmethod
     def get_derpreciation_ids(depreciation_data: List) -> List:
-        return [data[DepreCols.DEP_IDS] for data in depreciation_data]
+        return [data[DepCols.DEP_IDS] for data in depreciation_data]
 
     @api.model
     def _cron_generate_journal_entries(self):
@@ -113,8 +113,8 @@ class AccountAssetAsset(models.Model):
             group_entries=True,
         )
         for category, depreciations in groupby(
-            sorted(asset_depreciations, key=lambda x: x[DepreCols.CATEGORY_ID]),
-            key=lambda x: x[DepreCols.CATEGORY_ID],
+            sorted(asset_depreciations, key=lambda x: x[DepCols.CATEGORY_ID]),
+            key=lambda x: x[DepCols.CATEGORY_ID],
         ):
             _logger.info("# Asset Category ID : %s ", category)
             self._compute_journal_entries(list(depreciations), group_entries=True)
@@ -123,8 +123,8 @@ class AccountAssetAsset(models.Model):
         self, asset_depreciations: list, group_entries: bool = False
     ):
         for month, depreciation in groupby(
-            sorted(asset_depreciations, key=lambda d: d[DepreCols.MONTH]),
-            lambda d: d[DepreCols.MONTH],
+            sorted(asset_depreciations, key=lambda d: d[DepCols.MONTH]),
+            lambda d: d[DepCols.MONTH],
         ):
             depreciation = list(depreciation)
             _logger.info("# Asset depreciation moht : %s ", month)
@@ -172,32 +172,36 @@ class AccountAssetAsset(models.Model):
 
     def update_depreciation_product_cost(self, depreciations: List):
         user = self.env.user.name
-        for product_method, product_dep in groupby(
+        for cost_method, product_dep in groupby(
             depreciations,
-            key=lambda x: (x[DepreCols.PRODUCT], x[DepreCols.COST_METHOD]),
+            key=lambda x: (x[DepCols.PRODUCT], x[DepCols.COST_METHOD]),
         ):
             products = []
-            if product_method[1] == "fifo":
+            product_id = cost_method[0]
+            method = cost_method[1]
+            if method == "fifo":
                 for dep in product_dep:
-                    description = f"Depreciaton {product_method[1]} price update {dep[DepreCols.COST]} for depreciated value {dep[DepreCols.AMOUNT]} by {user}"
+                    description = _(
+                        f"Depreciated {method} price update {dep[DepCols.COST]} for value {dep[DepCols.AMOUNT]} by {user}"
+                    )
                     self.create_product_depreciation_cost(
-                        product_id=dep[DepreCols.PRODUCT],
-                        value=dep[DepreCols.COST],
-                        lot_id=dep[DepreCols.LOT_ID],
+                        product_id=dep[DepCols.PRODUCT],
+                        value=dep[DepCols.COST],
+                        lot_id=dep[DepCols.LOT_ID],
                         description=description,
                     )
-                products.append(product_method[0])
+                products.append(product_id)
                 _logger.info("Updated product fifo price for depreciation.")
-            if product_method[1] == "average":
+            if method == "average":
                 value = 0.0
                 month = ""
                 for dep in product_dep:
-                    value += dep[DepreCols.AMOUNT]
-                    month = dep[DepreCols.MONTH]
+                    value += dep[DepCols.AMOUNT]
+                    month = dep[DepCols.MONTH]
 
                 if not value:
                     continue
-                product = self.env["product.product"].browse(product_method[0])
+                product = self.env["product.product"].browse(product_id)
                 _logger.info("# Month %s ", month)
                 quantity = (
                     product._with_valuation_context()
@@ -207,7 +211,7 @@ class AccountAssetAsset(models.Model):
                 if quantity:
                     price = product.standard_price - (value / (quantity or 1))
                     _logger.info(f"Product {product.name} price {price}")
-                    description = f"Depreciaton {product_method[1]} price update {price} for depreciated value {value} by {user}"
+                    description = f"Depreciaton {method} price update {price} for depreciated value {value} by {user}"
                     self.create_product_depreciation_cost(
                         product_id=product.id, value=price, description=description
                     )

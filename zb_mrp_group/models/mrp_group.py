@@ -18,8 +18,8 @@
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 ##############################################################################
-from odoo import api, fields, models, _
 from random import randint
+from odoo import api, fields, models, _
 
 
 class MrpGroup(models.Model):

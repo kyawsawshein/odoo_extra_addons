@@ -32,7 +32,7 @@ class Query:
     """
 
 
-class DepreCols:
+class DepCols:
     PRODUCT = 0
     COST_METHOD = 1
     COMPANY_ID = 2
