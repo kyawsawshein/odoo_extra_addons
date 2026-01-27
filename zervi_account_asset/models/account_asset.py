@@ -5,6 +5,7 @@ from datetime import date, datetime
 from itertools import groupby
 from typing import Dict, List
 
+from dateutil.relativedelta import relativedelta
 from odoo import _, api, fields, models
 from odoo.modules.registry import Registry
 from odoo.tools.misc import DEFAULT_SERVER_DATE_FORMAT
@@ -24,6 +25,29 @@ class AccountAssetAsset(models.Model):
     product_id = fields.Many2one("product.product", string="Product")
     quantity = fields.Float(string="Quantity")
     lot_name = fields.Char(string="Lot Name")
+
+    # overriding funcition
+    def _compute_board_undone_dotation_nb(self, depreciation_date, total_days):
+        undone_dotation_number = self.method_number
+        if self.method_time == "end":
+            end_date = self.method_end
+            undone_dotation_number = len(
+                self.depreciation_line_ids.filtered(lambda x: x.move_check)
+            )
+            _logger.info("ending date : %s", end_date)
+            while depreciation_date <= end_date:
+                depreciation_date = date(
+                    depreciation_date.year,
+                    depreciation_date.month,
+                    depreciation_date.day,
+                ) + relativedelta(months=+self.method_period)
+                _logger.info(
+                    "# depreciaton date plus method period %s", depreciation_date
+                )
+                undone_dotation_number += 1
+        if self.prorata:
+            undone_dotation_number += 1
+        return undone_dotation_number
 
     def create_asset(self, vals: List[Dict], end_date: str = None) -> None:
         for val in vals:
