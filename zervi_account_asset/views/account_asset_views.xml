@@ -20,6 +20,11 @@
                 <field name="status" readonly="True"/>
             </xpath>
 
+            <field name="method_end" position="attributes">
+                <attribute name="invisible">method_time == 'number'</attribute>
+                <attribute name="required">method_time == 'end'</attribute>
+            </field>
+
         </field>
     </record>
 
