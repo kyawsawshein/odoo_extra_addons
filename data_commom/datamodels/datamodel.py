@@ -3,6 +3,11 @@ from datetime import date
 from typing import List, Optional
 
 
+def default_ids(x):
+    """Return Odoo default one2many command tuple."""
+    return (0, 0, x.__dict__)
+
+
 @dataclass
 class ProductValue:
     product_id: int

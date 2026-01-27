@@ -5,6 +5,7 @@ from typing import Dict, List
 
 from odoo import _, api, fields, models
 
+from ...data_commom.datamodels.datamodel import default_ids
 from ...data_commom.datamodels.datamodel import LineData, MoveData, PickingData
 from ..datamodels.datamodel import LocationType
 from ..helpers.query import ExpCols, Query
@@ -87,7 +88,7 @@ class LotDepreciation(models.Model):
                 if rule.validation_picking and picking.state == "assigned":
                     picking.button_validate()
 
-    def add_move_line(self, line, location_id: int, location_dest_id: int):
+    def add_move_line(self, line, location_id: int, location_dest_id: int) -> LineData:
         return LineData(
             product_id=line[ExpCols.PRODUCT_ID],
             product_uom_id=line[ExpCols.UOM_ID],
@@ -95,9 +96,9 @@ class LotDepreciation(models.Model):
             location_dest_id=location_dest_id,
             lot_id=line[ExpCols.LOT_ID],
             quantity=line[ExpCols.QUANTITY],
-        ).__dict__
+        )
 
-    def _prepare_move(self, line, location_id, location_dest_id) -> Dict:
+    def _prepare_move(self, line, location_id, location_dest_id) -> MoveData:
         move = MoveData(
             location_id=location_id,
             location_dest_id=location_dest_id,
@@ -106,9 +107,9 @@ class LotDepreciation(models.Model):
             product_uom_qty=line[ExpCols.QUANTITY],
             price_unit=line[ExpCols.AVG_COST],
             move_line_ids=[
-                (0, 0, self.add_move_line(line, location_id, location_dest_id))
+                default_ids(self.add_move_line(line, location_id, location_dest_id))
             ],
-        ).__dict__
+        )
 
         return move
 
@@ -116,14 +117,12 @@ class LotDepreciation(models.Model):
         moves = []
         for quant in lot_quants:
             moves.append(
-                (
-                    0,
-                    0,
+                default_ids(
                     self._prepare_move(
                         line=quant,
                         location_id=location_id,
                         location_dest_id=location_dest_id,
-                    ),
+                    )
                 )
             )
         return moves

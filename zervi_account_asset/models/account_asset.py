@@ -34,16 +34,12 @@ class AccountAssetAsset(models.Model):
             undone_dotation_number = len(
                 self.depreciation_line_ids.filtered(lambda x: x.move_check)
             )
-            _logger.info("ending date : %s", end_date)
             while depreciation_date <= end_date:
                 depreciation_date = date(
                     depreciation_date.year,
                     depreciation_date.month,
                     depreciation_date.day,
                 ) + relativedelta(months=+self.method_period)
-                _logger.info(
-                    "# depreciaton date plus method period %s", depreciation_date
-                )
                 undone_dotation_number += 1
         if self.prorata:
             undone_dotation_number += 1

@@ -4,6 +4,7 @@ from typing import Dict, List
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
+from ...data_commom.datamodels.datamodel import default_ids
 from ...data_commom.datamodels.datamodel import LineData, MoveData, PickingData
 
 _logger = logging.getLogger(__name__)
@@ -97,7 +98,7 @@ class UOMConversion(models.Model):
         qty: float,
         lot_id: int = None,
         lot_name: str = "",
-    ) -> Dict:
+    ) -> LineData:
         return LineData(
             product_id=line.product_id.id,
             product_uom_id=line.product_id.uom_id.id,
@@ -106,7 +107,7 @@ class UOMConversion(models.Model):
             lot_id=lot_id,
             quantity=qty,
             lot_name=lot_name,
-        ).__dict__
+        )
 
     def add_move(self, line, picking: PickingData) -> MoveData:
         return MoveData(
@@ -129,15 +130,13 @@ class UOMConversion(models.Model):
                 for lot in line.lot_ids:
                     qty = min(lot.product_qty, quantity)
                     move_lines.append(
-                        (
-                            0,
-                            0,
+                        default_ids(
                             self.add_move_line(
                                 line,
                                 picking,
                                 qty=qty,
                                 lot_id=lot.id,
-                            ),
+                            )
                         )
                     )
                     quantity -= qty
@@ -145,14 +144,10 @@ class UOMConversion(models.Model):
                         break
             else:
                 move_lines.append(
-                    (
-                        0,
-                        0,
-                        self.add_move_line(line, picking, qty=quantity),
-                    )
+                    default_ids(self.add_move_line(line, picking, qty=quantity))
                 )
             move.move_line_ids = move_lines
-            moves.append((0, 0, move.__dict__))
+            moves.append(default_ids(move))
         return moves
 
     def _prepare_move_in(self, lines, picking: PickingData) -> List:
@@ -161,9 +156,7 @@ class UOMConversion(models.Model):
             move = self.add_move(line, picking)
             move.picking_type_id = picking.picking_type_id
             move.move_line_ids = [
-                (
-                    0,
-                    0,
+                default_ids(
                     self.add_move_line(
                         line,
                         picking,
@@ -172,7 +165,7 @@ class UOMConversion(models.Model):
                     ),
                 )
             ]
-            moves.append((0, 0, move.__dict__))
+            moves.append(default_ids(move))
         return moves
 
     def prepare_picking(
@@ -201,7 +194,7 @@ class UOMConversion(models.Model):
             picking=picking_data,
         )
         picking_data.move_ids = moves
-        _logger.info("# ===== Picking Data Out : %s ", picking_data)
+        _logger.info("# Picking Data Out : %s ", picking_data)
         return (
             self.env["stock.picking"]
             .with_context(**context)
@@ -222,7 +215,7 @@ class UOMConversion(models.Model):
             picking=picking_data,
         )
         picking_data.move_ids = moves
-        _logger.info("# ===== Picking Data In : %s ", picking_data)
+        _logger.info("# Picking Data In : %s ", picking_data)
         return (
             self.env["stock.picking"]
             .with_context(**context)
