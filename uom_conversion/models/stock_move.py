@@ -18,7 +18,7 @@ class StockMove(models.Model):
 
     uom_conversion_id = fields.Many2one("uom.conversion", string="UOM Conversion")
 
-    def _get_value_from_simple_mrp(self, quantity: float, at_date=None) -> Dict:
+    def _get_value_from_uom_conversion(self, quantity: float, at_date=None) -> Dict:
         if self.uom_conversion_id and self.is_in:
             return {
                 "value": self.price_unit * self.quantity,
@@ -38,11 +38,10 @@ class StockMove(models.Model):
         ignore_manual_update=False,
         add_extra_value=True,
     ):
-        _logger.info("Get uom conversion value")
         res = super()._get_value_data(
             forced_std_price, at_date, ignore_manual_update, add_extra_value
         )
         if self.uom_conversion_id and self.is_in:
-            res.update(self._get_value_from_simple_mrp(self.quantity))
-        _logger.info("# get value data %s", res)
+            res.update(self._get_value_from_uom_conversion(self.quantity))
+
         return res

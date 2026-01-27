@@ -319,7 +319,6 @@ class MRPSimpleLineIn(models.Model):
     value = fields.Float(compute="_compute_value", string="Value", store=True)
     lot_name = fields.Char("Lot Name")
 
-    raw_product_domain = fields.Json(compute="_compute_raw_product_domain")
     expired_date = fields.Date()
 
     @api.onchange("product_id")

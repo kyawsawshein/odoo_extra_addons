@@ -34,6 +34,7 @@ class LotDepreciation(models.Model):
     company_id = fields.Many2one(
         "res.company",
         "Company",
+        required=True,
         default=lambda self: self.env.company,
         index=True,
     )
@@ -55,7 +56,7 @@ class LotDepreciation(models.Model):
         self.picking_type_code_domain = [("code", "in", ("internal"))]
 
     def _build_query(self, rule) -> str:
-        company = rule.company_id or self.env.company
+        company = rule.company_id
         expired_date = rule.expired_date or fields.Date.today()
         query = Query.get_lot_expiration.format(
             company_id=company.id,
