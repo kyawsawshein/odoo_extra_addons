@@ -81,8 +81,7 @@ class AccountBankStatementLine(models.Model):
         if sub_queries:
             self.env["res.partner"].flush_model(["company_id", "name"])
             self.env["account.move.line"].flush_model(["partner_id", "company_id"])
-            query = SQL(
-                """
+            query = SQL("""
                 SELECT aml.partner_id
                 FROM account_move_line aml
                 JOIN res_partner partner ON
@@ -90,8 +89,7 @@ class AccountBankStatementLine(models.Model):
                     AND partner.name IS NOT NULL
                     AND partner.active
                     AND ((
-            """
-            )
+            """)
             query_parts = SQL(") OR (").join(sub_queries)
             final_query = SQL(
                 """
