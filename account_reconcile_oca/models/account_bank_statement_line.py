@@ -98,9 +98,6 @@ class AccountBankStatementLine(models.Model):
         ['|', ('match_journal_ids', '=', False), ('match_journal_ids', '=', journal_id)]
         """,
     )
-    #    [('rule_type', '=', 'writeoff_button'),
-    #     '|',
-    #     ('match_journal_ids', '=', False), ('match_journal_ids', '=', journal_id)]
     manual_name = fields.Char(store=False, default=False, prefetch=False)
     manual_amount = fields.Monetary(
         store=False, default=False, prefetch=False, currency_field="manual_currency_id"
@@ -663,11 +660,6 @@ class AccountBankStatementLine(models.Model):
                 self.env["account.reconcile.model"]
                 .search(
                     [
-                        (
-                            "rule_type",
-                            "in",
-                            ["invoice_matching", "writeoff_suggestion"],
-                        ),
                         ("company_id", "=", self.company_id.id),
                     ]
                 )
@@ -987,13 +979,8 @@ class AccountBankStatementLine(models.Model):
         for journal, ilines in lines_by_journal:
             models = self.env["account.reconcile.model"].search(
                 [
-                    (
-                        "rule_type",
-                        "in",
-                        ["invoice_matching", "writeoff_suggestion"],
-                    ),
                     ("company_id", "in", journal.company_id.ids),
-                    ("auto_reconcile", "=", True),
+                    ("trigger", "=", "auto_reconcile"),
                     "|",
                     ("match_journal_ids", "=", False),
                     ("match_journal_ids", "in", journal.id),

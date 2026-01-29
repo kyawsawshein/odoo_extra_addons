@@ -43,7 +43,6 @@ class AccountBankStatementLine(models.Model):
         # Retrieve the partner from the 'reconcile models'.
         rec_models = self.env["account.reconcile.model"].search(
             [
-                ("rule_type", "!=", "writeoff_button"),
                 ("company_id", "=", self.company_id.id),
             ]
         )

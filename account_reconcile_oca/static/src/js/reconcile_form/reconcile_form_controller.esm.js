@@ -46,7 +46,7 @@ export class ReconcileFormController extends FormController {
                 const message = await this.orm.call(
                     "account.journal",
                     "get_rainbowman_message",
-                    [[journalId[0]]]
+                    [[journalId.id]]
                 );
                 if (message) {
                     this.env.parentController.setRainbowMan(message);

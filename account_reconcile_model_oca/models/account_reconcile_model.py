@@ -1,9 +1,14 @@
 import re
+import logging
+
 from collections import defaultdict
 
 from dateutil.relativedelta import relativedelta
 
 from odoo import Command, api, fields, models, tools
+
+
+_logger = logging.getLogger(__name__)
 
 
 class AccountReconcileModel(models.Model):
@@ -15,10 +20,10 @@ class AccountReconcileModel(models.Model):
         "one possible counterpart is found.",
     )
 
-    @api.onchange("rule_type")
-    def _onchange_rule_type(self):
-        if self.rule_type != "invoice_matching":
-            self.unique_matching = False
+    # @api.onchange("rule_type")
+    # def _onchange_rule_type(self):
+    #     if self.rule_type != "invoice_matching":
+    #         self.unique_matching = False
 
     ####################################################
     # RECONCILIATION PROCESS
@@ -126,10 +131,10 @@ class AccountReconcileModel(models.Model):
         """
         self.ensure_one()
 
-        if self.rule_type == "invoice_matching" and (
-            not self.allow_payment_tolerance or self.payment_tolerance_param == 0
-        ):
-            return []
+        # if self.rule_type == "invoice_matching" and (
+        #     not self.allow_payment_tolerance or self.payment_tolerance_param == 0
+        # ):
+        #     return []
 
         currency = self.company_id.currency_id
 
@@ -158,6 +163,7 @@ class AccountReconcileModel(models.Model):
                 continue
 
             writeoff_line = line._get_write_off_move_line_dict(balance, currency)
+            _logger.info("###################### writeoff line %s ", writeoff_line)
             lines_vals_list.append(writeoff_line)
 
             residual_balance -= balance
@@ -202,43 +208,32 @@ class AccountReconcileModel(models.Model):
             * auto_reconcile: A flag indicating if the match is enough significant to
               auto reconcile the candidates.
         """
-        available_models = self.filtered(
-            lambda m: m.rule_type != "writeoff_button"
-        ).sorted()
 
-        for rec_model in available_models:
+        for rec_model in self:
             if not rec_model._is_applicable_for(st_line, partner):
                 continue
 
-            if rec_model.rule_type == "invoice_matching":
-                rules_map = rec_model._get_invoice_matching_rules_map()
-                for rule_index in sorted(rules_map.keys()):
-                    for rule_method in rules_map[rule_index]:
-                        candidate_vals = rule_method(st_line, partner)
-                        if not candidate_vals:
-                            continue
+            rules_map = rec_model._get_invoice_matching_rules_map()
+            for rule_index in sorted(rules_map.keys()):
+                for rule_method in rules_map[rule_index]:
+                    candidate_vals = rule_method(st_line, partner)
+                    if not candidate_vals:
+                        continue
 
-                        if candidate_vals.get("amls"):
-                            res = rec_model._get_invoice_matching_amls_result(
-                                st_line, partner, candidate_vals
-                            )
-                            if res:
-                                return {
-                                    **res,
-                                    "model": rec_model,
-                                }
-                        else:
+                    if candidate_vals.get("amls"):
+                        res = rec_model._get_invoice_matching_amls_result(
+                            st_line, partner, candidate_vals
+                        )
+                        if res:
                             return {
-                                **candidate_vals,
+                                **res,
                                 "model": rec_model,
                             }
-
-            elif rec_model.rule_type == "writeoff_suggestion":
-                return {
-                    "model": rec_model,
-                    "status": "write_off",
-                    "auto_reconcile": rec_model.auto_reconcile,
-                }
+                    else:
+                        return {
+                            **candidate_vals,
+                            "model": rec_model,
+                        }
         return {}
 
     def _is_applicable_for(self, st_line, partner):
@@ -254,8 +249,8 @@ class AccountReconcileModel(models.Model):
                 self.match_journal_ids
                 and st_line.move_id.journal_id not in self.match_journal_ids
             )
-            or (self.match_nature == "amount_received" and st_line.amount < 0)
-            or (self.match_nature == "amount_paid" and st_line.amount > 0)
+            # or (self.match_nature == "amount_received" and st_line.amount < 0)
+            # or (self.match_nature == "amount_paid" and st_line.amount > 0)
             or (
                 self.match_amount == "lower"
                 and abs(st_line.amount) >= self.match_amount_max
@@ -271,25 +266,25 @@ class AccountReconcileModel(models.Model):
                     or abs(st_line.amount) < self.match_amount_min
                 )
             )
-            or (self.match_partner and not partner)
+            # or (self.match_partner and not partner)
             or (
-                self.match_partner
-                and self.match_partner_ids
+                # self.match_partner and
+                self.match_partner_ids
                 and partner not in self.match_partner_ids
             )
             or (
-                self.match_partner
-                and self.match_partner_category_ids
-                and not (partner.category_id & self.match_partner_category_ids)
+                # self.match_partner and
+                # self.match_partner_category_ids
+                # and not (partner.category_id & self.match_partner_category_ids)
             )
         ):
             return False
 
         # Filter on label, note and transaction_type
         for record, rule_field, record_field in [
-            (st_line, "label", "payment_ref"),
-            (st_line.move_id, "note", "narration"),
-            (st_line, "transaction_type", "transaction_type"),
+            (st_line, "label", "payment_ref")
+            # (st_line.move_id, "note", "narration"),
+            # (st_line, "transaction_type", "transaction_type"),
         ]:
             rule_term = (self["match_" + rule_field + "_param"] or "").lower()
             record_term = (record[record_field] or "").lower()
@@ -322,17 +317,17 @@ class AccountReconcileModel(models.Model):
             aml_domain.append(("balance", "<", 0.0))
 
         currency = st_line.foreign_currency_id or st_line.currency_id
-        if self.match_same_currency:
-            aml_domain.append(("currency_id", "=", currency.id))
+        # if self.match_same_currency:
+        #     aml_domain.append(("currency_id", "=", currency.id))
 
         if partner:
             aml_domain.append(("partner_id", "=", partner.id))
 
-        if self.past_months_limit:
-            date_limit = fields.Date.context_today(self) - relativedelta(
-                months=self.past_months_limit
-            )
-            aml_domain.append(("date", ">=", fields.Date.to_string(date_limit)))
+        # if self.past_months_limit:
+        #     date_limit = fields.Date.context_today(self) - relativedelta(
+        #         months=self.past_months_limit
+        #     )
+        #     aml_domain.append(("date", ">=", fields.Date.to_string(date_limit)))
 
         return aml_domain
 
@@ -345,12 +340,12 @@ class AccountReconcileModel(models.Model):
         """
         self.ensure_one()
         allowed_fields = []
-        if self.match_text_location_label:
-            allowed_fields.append("payment_ref")
-        if self.match_text_location_note:
-            allowed_fields.append("narration")
-        if self.match_text_location_reference:
-            allowed_fields.append("ref")
+        # if self.match_text_location_label:
+        allowed_fields.append("payment_ref")
+        # if self.match_text_location_note:
+        allowed_fields.append("narration")
+        # if self.match_text_location_reference:
+        allowed_fields.append("ref")
         return st_line._get_st_line_strings_for_matching(allowed_fields=allowed_fields)
 
     def _get_invoice_matching_st_line_tokens(self, st_line):
@@ -402,11 +397,12 @@ class AccountReconcileModel(models.Model):
         """
 
         def get_order_by_clause(alias=None):
-            direction = "DESC" if self.matching_order == "new_first" else "ASC"
+            # direction = "DESC" if self.matching_order == "new_first" else "ASC"
+            direction = "ASC"
             dotted_alias = f"{alias}." if alias else ""
             return f"{dotted_alias}date_maturity {direction}, {dotted_alias}date {direction}, {dotted_alias}id {direction}"  # noqa: E501
 
-        assert self.rule_type == "invoice_matching"
+        # assert self.rule_type == "invoice_matching"
         self.env["account.move"].flush_model()
         self.env["account.move.line"].flush_model()
 
@@ -444,12 +440,12 @@ class AccountReconcileModel(models.Model):
             all_params += where_params
 
         enabled_matches = []
-        if self.match_text_location_label:
-            enabled_matches.append(("account_move_line", "name"))
-        if self.match_text_location_note:
-            enabled_matches.append(("account_move_line__move_id", "name"))
-        if self.match_text_location_reference:
-            enabled_matches.append(("account_move_line__move_id", "ref"))
+        # if self.match_text_location_label:
+        enabled_matches.append(("account_move_line", "name"))
+        # if self.match_text_location_note:
+        enabled_matches.append(("account_move_line__move_id", "name"))
+        # if self.match_text_location_reference:
+        enabled_matches.append(("account_move_line__move_id", "ref"))
 
         if numerical_tokens:
             for table_alias, field in enabled_matches:
@@ -519,9 +515,9 @@ class AccountReconcileModel(models.Model):
                     "amls": self.env["account.move.line"].browse(candidate_ids),
                 }
             elif (
-                self.match_text_location_label
-                or self.match_text_location_note
-                or self.match_text_location_reference
+                self.match_label
+                # or self.match_text_location_note
+                # or self.match_text_location_reference
             ):
                 # In the case any of the Label, Note or Reference matching rule has been
                 # toggled, and the query didn't return
@@ -601,26 +597,28 @@ class AccountReconcileModel(models.Model):
         """
         self.ensure_one()
 
-        if self.rule_type not in ("invoice_matching", "writeoff_suggestion"):
-            return self.env["res.partner"]
+        # if self.rule_type not in ("invoice_matching", "writeoff_suggestion"):
+        #     return self.env["res.partner"]
 
-        for partner_mapping in self.partner_mapping_line_ids:
-            match_payment_ref = (
-                re.match(partner_mapping.payment_ref_regex, st_line.payment_ref)
-                if partner_mapping.payment_ref_regex
-                else True
-            )
-            match_narration = (
-                re.match(
-                    partner_mapping.narration_regex,
-                    tools.html2plaintext(st_line.narration or "").rstrip(),
-                )
-                if partner_mapping.narration_regex
-                else True
-            )
-
-            if match_payment_ref and match_narration:
+        for partner_mapping in self.line_ids:
+            if partner_mapping.partner_id:
                 return partner_mapping.partner_id
+            # match_payment_ref = (
+            #     re.match(partner_mapping.payment_ref_regex, st_line.payment_ref)
+            #     if partner_mapping.payment_ref_regex
+            #     else True
+            # )
+            # match_narration = (
+            #     re.match(
+            #         partner_mapping.narration_regex,
+            #         tools.html2plaintext(st_line.narration or "").rstrip(),
+            #     )
+            #     if partner_mapping.narration_regex
+            #     else True
+            # )
+
+            # if match_payment_ref and match_narration:
+            #     return partner_mapping.partner_id
         return self.env["res.partner"]
 
     def _get_invoice_matching_amls_result(self, st_line, partner, candidate_vals):  # noqa: C901
@@ -766,8 +764,8 @@ class AccountReconcileModel(models.Model):
         """
         self.ensure_one()
 
-        if not self.allow_payment_tolerance:
-            return {"allow_write_off", "allow_auto_reconcile"}
+        # if not self.allow_payment_tolerance:
+        #     return {"allow_write_off", "allow_auto_reconcile"}
 
         st_line_currency = st_line.foreign_currency_id or st_line.currency_id
         st_line_amount_curr = st_line._prepare_move_line_default_vals()[1][
@@ -840,6 +838,6 @@ class AccountReconcileModelLine(models.Model):
             "currency_id": currency.id,
             "analytic_distribution": self.analytic_distribution,
             "reconcile_model_id": self.model_id.id,
-            "journal_id": self.journal_id.id,
+            # "journal_id": self.model_id.journal_id.id,
             "tax_ids": [],
         }
