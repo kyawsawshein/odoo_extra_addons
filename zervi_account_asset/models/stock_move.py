@@ -34,26 +34,32 @@ class StockMove(models.Model):
         return moves
 
     def asset_create(self):
-        vals = []
+        asset_list = []
+        asset_obj = self.env["account.asset.asset"]
+        company_id = self.company_id.id
         asset_categ = self.product_id.asset_category_id
-        for line in self.move_line_ids:
-            if asset_categ and line.expiration_date:
-                end_date = line.expiration_date.strftime(DEFAULT_SERVER_DATE_FORMAT)
-                vals.append(
-                    Assets(
-                        name=self.product_id.name,
-                        code=self.picking_id.name or False,
-                        product_id=self.product_id.id,
-                        quantity=self.quantity,
-                        category_id=asset_categ.id,
-                        value=self.value,
-                        partner_id=self.picking_id.partner_id.id,
-                        company_id=self.company_id.id,
-                        date=self.date.strftime(DEFAULT_SERVER_DATE_FORMAT),
-                        lot_name=line.lot_id.name or line.lot_name,
-                    ).__dict__
-                )
-                self.env["account.asset.asset"].create_asset(vals, end_date)
+        partner_id = self.picking_id.partner_id.id
+        categ_vale = asset_obj.onchange_category_id_values(asset_categ.id)
+        date = self.date.strftime(DEFAULT_SERVER_DATE_FORMAT)
+        for line in self.move_line_ids.filtered(lambda l: l.expiration_date):
+            asset = Assets(
+                name=line.product_id.name,
+                code=line.picking_id.name or False,
+                product_id=line.product_id.id,
+                quantity=line.quantity,
+                category_id=asset_categ.id,
+                value=(self.value / self.quantity) * line.quantity,
+                partner_id=partner_id,
+                company_id=company_id,
+                date=date,
+                lot_name=line.lot_id.name or line.lot_name,
+            ).__dict__
+            asset.update(categ_vale["value"])
+            asset["method_end"] = line.expiration_date.strftime(
+                DEFAULT_SERVER_DATE_FORMAT
+            )
+            asset_list.append(asset)
+        asset_obj.create_asset(asset_list)
 
     def get_remove_value(self, assets: List, asset_qty: float) -> Dict:
         remove_assets = defaultdict(dict)

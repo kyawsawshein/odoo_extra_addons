@@ -57,3 +57,10 @@ class Assets:
     method_time: Optional[str] = None
     code: Optional[str] = None
     method_end: Optional[str] = None
+    method: Optional[str] = None
+    method_number: Optional[int] = 5
+    method_period: Optional[int] = 1
+    method_progress_factor: Optional[float] = 0.3
+    prorata: Optional[bool] = False
+    account_analytic_id: Optional[int] = None
+    analytic_distribution: Optional[int] = None

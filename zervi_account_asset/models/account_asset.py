@@ -45,16 +45,10 @@ class AccountAssetAsset(models.Model):
             undone_dotation_number += 1
         return undone_dotation_number
 
-    def create_asset(self, vals: List[Dict], end_date: str = None) -> None:
+    def create_asset(self, vals: List[Dict]) -> None:
         for val in vals:
-            changed_vals = self.onchange_category_id_values(val["category_id"])
-            val.update(changed_vals["value"])
-            if end_date:
-                val["method_end"] = end_date
             asset = self.create(val)
             if asset.category_id.open_asset:
-                if asset.date_first_depreciation == "last_day_period" and end_date:
-                    asset.method_end = end_date
                 asset.validate()
 
     def _build_query(self, depreciation_date: str, group_entries: bool) -> str:
