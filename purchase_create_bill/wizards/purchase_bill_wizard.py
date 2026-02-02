@@ -22,8 +22,8 @@ class PurchaseCreateBillWizard(models.TransientModel):
     waiting_lines = fields.Text(string="Waiting to be Received", readonly=True)
 
     @api.model
-    def default_get(self, fields_list):
-        res = super().default_get(fields_list)
+    def default_get(self, fields):
+        res = super().default_get(fields)
         if self.env.context.get("active_model") == "purchase.order":
             purchase_id = self.env.context.get("active_id")
             if purchase_id:

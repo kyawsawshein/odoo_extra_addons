@@ -115,6 +115,9 @@ class MrpProduction(models.Model):
     def _onchange_bom_id(self):
         """Writes data to material_cost_ids, labour_cost_ids and
         overhead_cost_ids when change in bom_id"""
+        self.write({'material_cost_ids': [(5, 0)]})
+        self.write({'labour_cost_ids': [(5, 0)]})
+        self.write({'overhead_cost_ids': [(5, 0)]})
         self.write(
             {
                 "material_cost_ids": [
