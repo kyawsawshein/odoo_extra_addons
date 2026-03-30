@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from datetime import date
 from typing import List, Optional
 
@@ -44,6 +44,9 @@ class MoveData:
     move_line_ids: Optional[List] = None
     state: str = "confirmed"
     uom_conversion_id: Optional[int] = None
+
+    def to_dict(self):
+        return {k: v for k, v in asdict(self).items() if v is not None}
 
 
 @dataclass
