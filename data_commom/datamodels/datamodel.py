@@ -1,4 +1,4 @@
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from datetime import date
 from typing import List, Optional
 
@@ -56,3 +56,17 @@ class PickingData:
     location_id: int
     location_dest_id: int
     move_ids: Optional[List] = None
+
+
+@dataclass
+class SaleOrderData:
+    customer_id: int
+    date_order: date
+    order_lines: Optional[List] = None
+
+
+@dataclass
+class SaleOrderLineData:
+    product_id: int
+    product_uom_qty: date
+    price_unit: Optional[List] = None

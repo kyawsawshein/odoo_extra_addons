@@ -40,13 +40,14 @@ class TeableAPIClient:
         }
 
         # Table IDs (update these with your actual table IDs)
-        self.tables = {
-            "product": "tbl3m7yBvOWWMa7yJQ9",
-            "brand": "tblplGdZLSdjNgtgk8S",
-            "uom": "tblOl0VO0tW0uPD4UCT",
-            "mo_finished_goods": "tblKyI5S3WKMz3IQoEe",
-            "stock": "tblQpfQKdfbl84OADmW",
-        }
+        # self.tables = {
+        #     "product": "tbl4j50Luypz4duYYuu",
+        #     "brand": "tbl2iNlguP42k34JZcg",
+        #     "uom": "tblwU13alfTr1KSCMNA",
+        #     "mo_finished_goods": "tbla31db4ASaex3Vqcn",
+        #     "stock": "tblRznG1PPWco82XPpx",
+        #     "sale_order_line": "tblvZe8sZ0CRrb9HdHw",
+        # }
         _logger.info("Teable AI Connected...")
 
     def execute_sql_query(self, sql: str) -> List[Dict[str, Any]]:
@@ -85,10 +86,10 @@ class TeableAPIClient:
                 _logger.error(f"Response: {e.response.text}")
             return None
 
-    def strategy_field_max_sql(self, table: str, date_field: str) -> Optional[str]:
+    def strategy_field_max_sql(self, table_id: str, date_field: str) -> Optional[str]:
         """Strategy 3: SQL query (if supported)"""
         try:
-            sql = f"SELECT MAX({date_field}) as max_date FROM {table}"
+            sql = f"SELECT MAX({date_field}) as max_date FROM {table_id}"
             results = self.execute_sql_query(sql)
 
             if results and results[0].get("max_date"):
@@ -100,19 +101,17 @@ class TeableAPIClient:
         return None
 
     # ========== CRUD OPERATIONS ==========
-    def get_endpoint_query(self, table: str, record_id: str = None):
-        table = self.tables[table]
-        endpoint = f"/table/{table}/record"
+    def get_endpoint_query(self, table_id: str, record_id: str = None):
+        endpoint = f"/table/{table_id}/record"
         if record_id:
-            endpoint = f"/table/{table}/record/{record_id}"
+            endpoint = f"/table/{table_id}/record/{record_id}"
 
         return endpoint
 
-    def get_endpoint(self, table: str, record_id: str = None):
-        table = self.tables[table]
-        endpoint = f"/table/{table}/record"
+    def get_endpoint(self, table_id: str, record_id: str = None):
+        endpoint = f"/table/{table_id}/record"
         if record_id:
-            endpoint = f"/table/{table}/record/{record_id}"
+            endpoint = f"/table/{table_id}/record/{record_id}"
 
         return endpoint
 
@@ -121,7 +120,7 @@ class TeableAPIClient:
         return payload
 
     def create_record(
-        self, table: str, fields: Dict, field_key_type: str = "dbFieldName"
+        self, table_id: str, fields: Dict, field_key_type: str = "dbFieldName"
     ) -> Optional[Dict]:
         """
         Create a single record
@@ -132,13 +131,13 @@ class TeableAPIClient:
         Returns:
             Created record data
         """
-        endpoint = self.get_endpoint(table)
+        endpoint = self.get_endpoint(table_id)
         payload = {"fieldKeyType": field_key_type, "records": [{"fields": fields}]}
         _logger.info("Create record payload : %s ", payload)
         return self._make_request(Method.POST, endpoint, json=payload)
 
     def create_batch_records(
-        self, table: str, records: List[Dict], field_key_type: str = "dbFieldName"
+        self, table_id: str, records: List[Dict], field_key_type: str = "dbFieldName"
     ) -> Optional[Dict]:
         """
         Create multiple records in batch
@@ -149,7 +148,7 @@ class TeableAPIClient:
         Returns:
             Batch creation result
         """
-        endpoint = self.get_endpoint(table)
+        endpoint = self.get_endpoint(table_id)
         payload = {
             "fieldKeyType": field_key_type,
             "records": [{"fields": record} for record in records],
@@ -158,7 +157,7 @@ class TeableAPIClient:
 
     def get_records(
         self,
-        table: str,
+        table_id: str,
         filter_list: Optional[List] = None,
         sort_list: Any = None,
         **params,
@@ -173,7 +172,7 @@ class TeableAPIClient:
         Returns:
             Records data
         """
-        endpoint = self.get_endpoint(table)
+        endpoint = self.get_endpoint(table_id)
         query_params = {
             "fieldKeyType": "dbFieldName",
             "cellFormat": "json",
@@ -195,7 +194,7 @@ class TeableAPIClient:
 
     def update_record(
         self,
-        table: str,
+        table_id: str,
         record_id: str,
         fields: Dict,
         field_key_type: str = "dbFieldName",
@@ -210,12 +209,12 @@ class TeableAPIClient:
         Returns:
             Updated record data
         """
-        endpoint = self.get_endpoint(table, record_id=record_id)
+        endpoint = self.get_endpoint(table_id, record_id=record_id)
         payload = {"fieldKeyType": field_key_type, "record": {"fields": fields}}
         return self._make_request(Method.PATCH, endpoint, params=payload)
 
     def update_record_by_id(
-        self, table: str, record_id: str, update_fields: Dict[str, Any]
+        self, table_id: str, record_id: str, update_fields: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
         """
         Update a record by its ID
@@ -228,7 +227,7 @@ class TeableAPIClient:
             Updated record dictionary, or None if failed
         """
         try:
-            endpoint = self.get_endpoint(table, record_id=record_id)
+            endpoint = self.get_endpoint(table_id, record_id=record_id)
             # Prepare update payload
             payload = {
                 "fieldKeyType": "dbFieldName",
@@ -242,7 +241,7 @@ class TeableAPIClient:
             return None
 
     def find_record_by_field(
-        self, table: str, field_name: str, field_value: Any
+        self, table_id: str, field_name: str, field_value: Any
     ) -> Optional[Dict[str, Any]]:
         """
         Find a record by field value
@@ -275,7 +274,7 @@ class TeableAPIClient:
                 "fields": "*",
             }
 
-            endpoint = self.get_endpoint(table)
+            endpoint = self.get_endpoint(table_id)
             data = self._make_request(Method.GET, endpoint=endpoint, params=params)
             _logger.info("Find record by fields data %s", data)
             if data.get("records") and len(data["records"]) > 0:
@@ -290,7 +289,7 @@ class TeableAPIClient:
 
     def upsert_record(
         self,
-        table: str,
+        table_id: str,
         unique_field: str,
         unique_value: Any,
         update_fields: Dict[str, Any],
@@ -312,7 +311,7 @@ class TeableAPIClient:
         try:
             # Check if record exists
             existing_record = self.find_record_by_field(
-                table, unique_field, unique_value
+                table_id, unique_field, unique_value
             )
 
             if existing_record:
@@ -334,7 +333,7 @@ class TeableAPIClient:
             _logger.error(f"Error in upsert operation: {e}")
             return {}
 
-    def delete_record(self, table: str, record_id: str) -> bool:
+    def delete_record(self, table_id: str, record_id: str) -> bool:
         """
         Delete a record
         Args:
@@ -343,7 +342,7 @@ class TeableAPIClient:
         Returns:
             True if successful, False otherwise
         """
-        endpoint = self.get_endpoint(table, record_id=record_id)
+        endpoint = self.get_endpoint(table_id, record_id=record_id)
         result = self._make_request(Method.DELETE, endpoint)
         return result is not None
 
@@ -359,7 +358,7 @@ class TeableAPIClient:
         return self._make_request(Method.GET, f"/table/{table}/field")
 
     def get_max_write_date_record(
-        self, table: str, date_field: str = "write_date"
+        self, table_id: str, date_field: str = "write_date"
     ) -> Optional[Dict[str, Any]]:
         """
         Get the record with the maximum write_date from a table
@@ -372,7 +371,7 @@ class TeableAPIClient:
         """
         try:
             # Build the URL for the records endpoint
-            endpoint = self.get_endpoint(table)
+            endpoint = self.get_endpoint(table_id)
             # Query parameters: sort by write_date descending, limit to 1 record
             params = {
                 "fieldKeyType": "dbFieldName",
@@ -390,7 +389,7 @@ class TeableAPIClient:
             if result and result.get("records") and len(result["records"]) > 0:
                 return result["records"][0]
             else:
-                _logger.error(f"No records found in table {table}")
+                _logger.error(f"No records found in table {table_id}")
                 return None
 
         except requests.exceptions.RequestException as e:
@@ -398,7 +397,7 @@ class TeableAPIClient:
             return None
 
     def get_max_write_date_value(
-        self, table: str, date_field: str = "write_date"
+        self, table_id: str, date_field: str = "write_date"
     ) -> Optional[str]:
         """
         Get only the maximum write_date value from a table
@@ -409,13 +408,13 @@ class TeableAPIClient:
         Returns:
             String containing the maximum write_date value, or None if no records
         """
-        record = self.get_max_write_date_record(table, date_field)
+        record = self.get_max_write_date_record(table_id, date_field)
         if record and "fields" in record:
             return record["fields"].get(date_field)
         return None
 
     def get_records_after_date(
-        self, table: str, date_field: str, after_date: str, limit: int = 100
+        self, table_id: str, date_field: str, after_date: str, limit: int = 100
     ) -> list:
         """
         Get records created/modified after a specific date
@@ -438,7 +437,7 @@ class TeableAPIClient:
                 "limit": limit,
                 "fields": "*",
             }
-            endpoint = self.get_endpoint(table)
+            endpoint = self.get_endpoint(table_id)
             result = self._make_request(Method.GET, endpoint, params=params)
             return result.get("records", [])
 

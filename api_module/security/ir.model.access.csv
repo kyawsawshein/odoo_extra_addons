@@ -5,3 +5,5 @@ access_sync_job_user,sync.job.user,model_sync_job,base.group_user,1,0,0,0
 access_sync_job_manager,sync.job.manager,model_sync_job,base.group_system,1,1,1,1
 access_api_token_user,api.token.user,model_api_token,base.group_user,1,1,1,0
 access_api_token_manager,api.token.manager,model_api_token,base.group_system,1,1,1,1
+access_teable_ai_user,teable.ai.user,model_teable_ai,base.group_user,1,1,1,1
+access_teable_ai_user,teable.ai.manager,model_teable_ai,base.group_system,1,1,1,1

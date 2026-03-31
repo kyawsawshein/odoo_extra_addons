@@ -26,11 +26,19 @@ class Product:
 
 class ProductProduct(models.Model):
     _inherit = "product.product"
+    _description = "Teable AI"
 
-    def teable_uom(self) -> Dict:
+    def get_table_id(self) -> Dict:
+        table_dict = {}
+        for table in self.env["teable.ai"].search_read([], fields=["name", "table"]):
+            table_dict[table.get("name")] = table.get("table")
+
+        return table_dict
+
+    def teable_uom(self, table_dict: Dict) -> Dict:
         api = self.env["api.config"].search([("name", "=", "Teable AI")])
         client = TeableAPIClient(database=api.database, api_token=api.token_key)
-        uom_teable = client.get_records(table="uom")
+        uom_teable = client.get_records(table_id=table_dict.get("uom"))
         uom_dict = {}
         for uom in uom_teable:
             uom_dict[uom.get("fields").get("UOM")] = {"id": uom.get("id")}
@@ -129,15 +137,18 @@ class ProductProduct(models.Model):
         order: str = "write_date asc",
     ):
         start_time = datetime.now()
-        table = "product"
+        table_dict = self.get_table_id()
+        _logger.info("#### Teable ID : %s ", table_dict)
+        table_id = table_dict.get("product")
+
         api = self.env["api.config"].search([("name", "=", "Teable AI")])
         client = TeableAPIClient(database=api.database, api_token=api.token_key)
-        uom_dict = self.teable_uom()
+        uom_dict = self.teable_uom(table_dict)
         _logger.info("UOM dict : %s", uom_dict)
 
         domain = [("type", "=", "consu")]
 
-        last_write_date = client.get_max_write_date_record(table)
+        last_write_date = client.get_max_write_date_record(table_id)
         if last_write_date:
             timestamp = last_write_date.get("fields").get("write_date")
             write_date = datetime.fromtimestamp(timestamp).strftime(
@@ -186,12 +197,11 @@ class ProductProduct(models.Model):
                     unique_value=product.get("id"),
                     update_fields=product,
                 )
-
             except Exception as err:
                 _logger.error("Error ", str(err))
 
-        stocks = self.teable_stock_quant(client)
-        _logger.info("### stock quant data count: %s ", stocks)
+        # stocks = self.teable_stock_quant(client)
+        # _logger.info("### stock quant data count: %s ", stocks)
         # self._update_record_table(
         #     client=client,
         #     uom_dict=uom_dict,
