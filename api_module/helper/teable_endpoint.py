@@ -201,7 +201,7 @@ class TeableAPIClient:
         """
         endpoint = self.get_endpoint(table_id, record_id=record_id)
         payload = {"fieldKeyType": field_key_type, "record": {"fields": fields}}
-        return self._make_request(Method.PATCH, endpoint, params=payload)
+        return self._make_request(Method.PATCH, endpoint=endpoint, json=payload)
 
     def update_record_by_id(
         self, table_id: str, record_id: str, update_fields: Dict[str, Any]
@@ -224,7 +224,7 @@ class TeableAPIClient:
                 "record": {"fields": update_fields},
             }
             # PATCH method for partial update
-            return self._make_request(Method.PATCH, endpoint=endpoint, params=payload)
+            return self._make_request(Method.PATCH, endpoint=endpoint, json=payload)
 
         except requests.exceptions.RequestException as e:
             _logger.error(f"Error updating record by ID: {e}")

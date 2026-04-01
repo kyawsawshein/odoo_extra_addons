@@ -123,21 +123,23 @@ class Teable(models.Model):
             uom_dict = self.teable_uom(table_dict)
             _logger.info("UOM dict : %s", uom_dict)
 
-            domain = [("default_code", "=", True)]
+            domain = [("default_code", "!=", False)]
 
             last_write_date = TEABLE.get_max_write_date_record(table_id)
             if last_write_date:
                 timestamp = last_write_date.get("fields").get("write_date")
-                write_date = datetime.fromtimestamp(timestamp).strftime(
-                    DEFAULT_SERVER_DATETIME_FORMAT
-                )
-                _logger.info("Write date %s ", write_date)
-                domain.append(("write_date", ">", write_date))
+                if timestamp:
+                    write_date = datetime.fromtimestamp(timestamp).strftime(
+                        DEFAULT_SERVER_DATETIME_FORMAT
+                    )
+                    _logger.info("Write date %s ", write_date)
+                    domain.append(("write_date", ">", write_date))
 
             if filter_domain:
                 domain.extend(filter_domain)
 
             fields = TeableProduct.get_fields(TeableProduct)
+            _logger.info("#### Domain : %s  and Fiedls List : %s", domain, fields)
             products = self.env["product.product"].search_read(
                 domain,
                 fields=fields,
@@ -191,7 +193,7 @@ class Teable(models.Model):
                 domain.extend(filter_domain)
 
             fields = TeablePartner.get_fields(TeablePartner)
-            _logger.info("#### partner fields %s ", fields)
+            _logger.info("#### Domain : %s  and Fiedls List : %s", domain, fields)
             partners = self.env["res.partner"].search_read(
                 domain,
                 fields=fields,
