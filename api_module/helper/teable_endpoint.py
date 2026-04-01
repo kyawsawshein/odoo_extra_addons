@@ -70,11 +70,11 @@ class TeableAPIClient:
             response = requests.request(method, url, headers=self.headers, **kwargs)
             response.raise_for_status()
             return response.json()
-        except requests.exceptions.RequestException as e:
-            _logger.error(f"API Error: {e}")
-            if hasattr(e, "response") and e.response is not None:
-                _logger.error(f"Response: {e.response.text}")
-            return None
+        except requests.exceptions.RequestException as err:
+            _logger.error(f"API Error: {err}")
+            if hasattr(err, "response") and err.response is not None:
+                _logger.error(f"Response: {err.response.text}")
+            raise err
 
     def strategy_field_max_sql(self, table_id: str, date_field: str) -> Optional[str]:
         """Strategy 3: SQL query (if supported)"""
@@ -123,7 +123,6 @@ class TeableAPIClient:
         """
         endpoint = self.get_endpoint(table_id)
         payload = {"fieldKeyType": field_key_type, "records": [{"fields": fields}]}
-        _logger.info("Create record payload : %s ", payload)
         return self._make_request(Method.POST, endpoint, json=payload)
 
     def create_batch_records(

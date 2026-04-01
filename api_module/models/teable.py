@@ -105,10 +105,10 @@ class Teable(models.Model):
     ):
         for rec in records:
             for key, value in rec.items():
-                if isinstance(value, tuple):
+                if isinstance(value, (tuple, list)):
                     rec[key] = value[1]
                 if isinstance(value, bool):
-                    rec[key] = None
+                    rec[key] = value or None
                 if key == "uom_id":
                     rec[key] = uom_dict.get(value[1])
                 if key == "write_date":
