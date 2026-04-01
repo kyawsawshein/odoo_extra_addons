@@ -266,7 +266,6 @@ class TeableAPIClient:
 
             endpoint = self.get_endpoint(table_id)
             data = self._make_request(Method.GET, endpoint=endpoint, params=params)
-            _logger.info("Find record by fields data %s", data)
             if data.get("records") and len(data["records"]) > 0:
                 return data["records"][0]
             else:

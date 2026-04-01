@@ -6,14 +6,23 @@ from typing import Any, Dict, List
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
+from odoo.modules.registry import Registry
 from odoo.tools.misc import DEFAULT_SERVER_DATETIME_FORMAT
 
+from ...data_commom.datamodels.datamodel import (
+    LineData,
+    MoveData,
+    PickingData,
+    default_ids,
+)
 from ..datamodels.datamodel import TeablePartner, TeableProduct
 from ..helper.teable_endpoint import TeableAPIClient
 
 _logger = logging.getLogger(__name__)
 
 TEABLE = None
+
+LIMIT = 10
 
 
 class Teable(models.Model):
@@ -62,10 +71,10 @@ class Teable(models.Model):
     ):
         for rec in records:
             for key, value in rec.items():
-                if isinstance(value, tuple):
+                if isinstance(value, (tuple, list)):
                     rec[key] = value[1]
                 if isinstance(value, bool):
-                    rec[key] = None
+                    rec[key] = value or None
                 if key == "write_date":
                     rec[key] = value.timestamp()
 
@@ -106,6 +115,53 @@ class Teable(models.Model):
                     rec[key] = value.timestamp()
             _logger.info("Product %s", rec)
 
+    def produce_product_table(self, table_id: str, products: List):
+        table_dict = self.get_table_id()
+        uom_dict = self.teable_uom(table_dict)
+        self._prepare_product_table(
+            uom_dict=uom_dict,
+            records=products,
+        )
+        self._update_table(
+            records=products, table_id=table_id, unique_field="default_code"
+        )
+
+    def product_partner_table(self, table_id: str, partners: List[Dict]):
+        self._prepare_record(records=partners)
+        self._update_table(
+            records=partners,
+            table_id=table_id,
+            unique_field="id",
+        )
+
+    @staticmethod
+    def split_by_batch(lst, batch_size):
+        for i in range(0, len(lst), batch_size):
+            yield lst[i : i + batch_size]
+
+    def with_delay_table_produce(
+        self,
+        table_id: str,
+        record_list: List[Dict],
+        method: str,
+        channel: str = "root",
+    ):
+
+        if record_list:
+            limit = LIMIT
+            for records in self.split_by_batch(record_list, limit):
+                self.with_delay(
+                    channel=channel,
+                    description=f"Teable AI Sync Table : {table_id}, methbod {method} : {len(records)}",
+                ).produce(table_id=table_id, records=records, method=method)
+
+    def produce(self, table_id: str, records: List[Dict], method: str):
+        with Registry(self.env.cr.dbname).cursor() as new_cr:
+            new_env = api.Environment(new_cr, self.env.uid, self.env.context)
+            teable = new_env["teable.ai"]
+            getattr(teable, method)(table_id, records)
+            _logger.info("###### Done job")
+
     def sync_teable_product(
         self,
         filter_domain: List = None,
@@ -120,11 +176,7 @@ class Teable(models.Model):
             raise ValidationError("Table Id not found!")
 
         if self.check_client:
-            uom_dict = self.teable_uom(table_dict)
-            _logger.info("UOM dict : %s", uom_dict)
-
             domain = [("default_code", "!=", False)]
-
             last_write_date = TEABLE.get_max_write_date_record(table_id)
             if last_write_date:
                 timestamp = last_write_date.get("fields").get("write_date")
@@ -147,13 +199,8 @@ class Teable(models.Model):
                 order=order,
             )
             _logger.info("Product total product count : %s .", len(products))
-
-            self._prepare_product_table(
-                uom_dict=uom_dict,
-                records=products,
-            )
-            self._update_table(
-                records=products, table_id=table_id, unique_field="default_code"
+            self.with_delay_table_produce(
+                table_id=table_id, record_list=products, method="produce_product_table"
             )
 
             end_time = datetime.now()
@@ -201,12 +248,11 @@ class Teable(models.Model):
                 order=order,
             )
             _logger.info("Partners total count : %s .", len(partners))
-            self._prepare_record(records=partners)
-            self._update_table(
-                records=partners,
-                table_id=table_dict.get("partner"),
-                unique_field="id",
+
+            self.with_delay_table_produce(
+                table_id=table_id, record_list=partners, method="product_partner_table"
             )
+
             end_time = datetime.now()
             _logger.info(
                 "Done Cron toaken time : %s for record count %s ",

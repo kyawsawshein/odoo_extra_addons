@@ -2,7 +2,7 @@ import logging
 from typing import Dict, List
 
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 
 from ...data_commom.datamodels.datamodel import (
     LineData,
@@ -11,90 +11,26 @@ from ...data_commom.datamodels.datamodel import (
     default_ids,
 )
 from ..helper.teable_endpoint import TeableAPIClient
+from .teable import TEABLE
 
 _logger = logging.getLogger(__name__)
 
 
-class StockMove(models.Model):
-    _inherit = "stock.move"
-
-    # def add_move_line(self, value) -> LineData:
-    #     return LineData(
-    #         product_id=value.get("product_id"),
-    #         product_uom_id=value.get("uom_id"),
-    #         location_id=1,
-    #         location_dest_id=5,
-    #         quantity=value.get("quantity"),
-    #         lot_name=value.get("lot_name"),
-    #     )
-
-    # def add_move(self, value) -> MoveData:
-    #     return MoveData(
-    #         location_id=1,
-    #         location_dest_id=5,
-    #         product_id=value.get("product_id"),
-    #         product_uom=value.get("uom_id"),
-    #         product_uom_qty=value.get("quantity"),
-    #         price_unit=value.get("price"),
-    #     )
-
-    # def _prepare_move_in(self, value, picking) -> Dict:
-    #     moves = []
-    #     move = self.add_move(value)
-    #     move.move_line_ids = [default_ids(self.add_move_line(value))]
-    #     return move.to_dict()
-
-    def do_receive(self, value: Dict):
-        value = {
-            "location_id": 1,
-            "location_dest_id": 5,
-            "product_id": 115447,
-            "product_uom": 1,
-            "product_uom_qty": 5,
-            "move_line_ids": [
-                (
-                    0,
-                    0,
-                    {
-                        "product_id": 115447,
-                        "product_uom_id": 1,
-                        "location_id": 1,
-                        "location_dest_id": 5,
-                        "quantity": 5,
-                        "lot_id": None,
-                        "lot_name": "WH/MO/00067-1",
-                        "move_id": None,
-                    },
-                )
-            ],
-            "state": "confirmed",
-        }
-
-        move_data = self._prepare_move_in(value)
-        # se face receptia
-        move = self.create(move_data)
-        move._action_assign()
-        move.action_done()
-
-        _logger.info("Done create stock move in.")
-        return move
+class Teable(models.Model):
+    _inherit = "teable.ai"
 
     def add_move_line(
         self,
         line,
         picking: PickingData,
-        qty: float,
-        lot_id: int = None,
-        lot_name: str = "",
     ) -> LineData:
         return LineData(
             product_id=line.get("product_id"),
             product_uom_id=line.get("uom_id"),
             location_id=picking.location_id,
             location_dest_id=picking.location_dest_id,
-            lot_id=lot_id,
-            quantity=qty,
-            lot_name=lot_name,
+            quantity=line.get("quantity"),
+            lot_name=line.get("lot_name"),
         )
 
     def add_move(self, line, picking: PickingData) -> MoveData:
@@ -107,7 +43,7 @@ class StockMove(models.Model):
             price_unit=line.get("price_unit"),
         )
 
-    def _prepare_move_in(self, lines, picking: PickingData) -> List:
+    def _prepare_move_in(self, lines: List[Dict], picking: PickingData) -> List:
         moves = []
         for line in lines:
             _logger.info("### Line : %s", line)
@@ -115,12 +51,7 @@ class StockMove(models.Model):
             move.picking_type_id = picking.picking_type_id
             move.move_line_ids = [
                 default_ids(
-                    self.add_move_line(
-                        line,
-                        picking,
-                        qty=line.get("quantity"),
-                        lot_name=line.get("lot_name"),
-                    ),
+                    self.add_move_line(line, picking),
                 )
             ]
             moves.append(default_ids(move))
@@ -129,24 +60,24 @@ class StockMove(models.Model):
     def prepare_picking(
         self,
         picking_type_id: int,
-        location_id: int = None,
-        location_dest_id: int = None,
+        location_id: int,
+        location_dest_id: int,
     ) -> PickingData:
         picking = PickingData(
             picking_type_id=picking_type_id,
-            location_id=1,
-            location_dest_id=5,
+            location_id=location_id,
+            location_dest_id=location_dest_id,
             date_done=fields.Datetime.now(),
         )
         return picking
 
-    def create_picking_lines_in(self, context: Dict, values: Dict):
-        # location_id = picking_type.default_location_src_id.id
-        # location_dest_id = self.location_dest_id.id
+    def create_picking_lines_in(self, context: Dict, values: List[Dict]):
+        location_id = 12
+        location_dest_id = 5
         picking_data = self.prepare_picking(
             picking_type_id=1,
-            location_id=0,
-            location_dest_id=0,
+            location_id=location_id,
+            location_dest_id=location_dest_id,
         )
         moves = self._prepare_move_in(
             lines=values,
@@ -160,106 +91,71 @@ class StockMove(models.Model):
             .create(picking_data.__dict__)
         )
 
-    def do_picking(self, values: Dict):
-        context_in = {"default_picking_type_id": 1}
-        picking_data = self.prepare_picking(
-            picking_type_id=1,
-            location_id=0,
-            location_dest_id=0,
-        )
-
-        picking_in = self.create_picking_lines_in(context_in, values)
+    def do_picking(self, values: List[Dict]):
+        context = {"default_picking_type_id": 1}
+        picking = self.create_picking_lines_in(context, values)
 
         # se face receptia
-        if picking_in.move_ids:
-            picking_in.action_assign()
-            if self.validation_receipt and picking_in.state == "assigned":
-                picking_in.button_validate()
+        if picking.move_ids:
+            picking.action_assign()
+            if picking.state == "assigned":
+                picking.button_validate()
 
         _logger.info("Done validaet picking for in.")
 
-    def add_picking_line(self, picking, product, quantity, uom, price_unit):
-        move = self.env["stock.move"].search(
-            [
-                ("picking_id", "=", picking.id),
-                ("product_id", "=", product.id),
-                ("product_uom", "=", uom.id),
-            ]
-        )
-        if move:
-            qty = move.product_uom_qty + quantity
-            move.write({"product_uom_qty": qty})
-        else:
-            values = {
-                "state": "confirmed",
-                "product_id": product.id,
-                "product_uom": uom.id,
-                "product_uom_qty": quantity,
-                # 'quantity_done': quantity,  # o fi bine >???
-                "picking_id": picking.id,
-                "price_unit": price_unit,
-                "location_id": picking.picking_type_id.default_location_src_id.id,
-                "location_dest_id": picking.picking_type_id.default_location_dest_id.id,
-                "picking_type_id": picking.picking_type_id.id,
-            }
-
-            move = self.env["stock.move"].create(values)
-        return move
-
-    def sync_teab_finished_goods(self):
+    def sync_table_finished_goods(self):
         table = "mo_finished_goods"
+        table_dict = self.get_table_id()
+        table_id = table_dict.get(table)
+
         api = self.env["api.config"].search([("name", "=", "Teable AI")])
-        client = TeableAPIClient(database=api.database, api_token=api.token_key)
-        filter_list = [
-            {"fieldId": "Status", "operator": "is", "value": "Done"},
-        ]
-        sort_list = [{"fieldId": "ID", "order": "asc"}]
-        finished_goods = client.get_records(table, filter_list, sort_list)
+        TEABLE = TeableAPIClient(database=api.database, api_token=api.token_key)
 
-        context = {"default_picking_type_id": 1}
-        picking_data = self.prepare_picking(
-            picking_type_id=1,
-            location_id=0,
-            location_dest_id=0,
-        )
+        if not table_id:
+            raise ValidationError("Table Id not found!")
 
-        values = []
-        for goods in finished_goods:
-            _logger.info("==================== finished goods %s", goods.get("fields"))
-            field_data = goods.get("fields")
-            product_dict = self.env["product.product"].search_read(
-                [
-                    (
-                        "default_code",
-                        "=",
-                        field_data.get("Product").get("title"),
-                    )
-                ],
-                fields=["id", "default_code", "uom_id"],
-            )[0]
-            _logger.info("### product dict %s ", product_dict)
-            value = {
-                "product_id": product_dict.get("id"),
-                "uom_id": product_dict.get("uom_id")[0],
-                "quantity": field_data.get("Finished_Qty"),
-                "lot_name": field_data.get("Lot_No"),
-                "price_unit": field_data.get("Cost"),
-            }
-            values.append(value)
-        _logger.info("#### values data list : %s ", values)
-        moves = self._prepare_move_in(
-            lines=values,
-            picking=picking_data,
-        )
-        picking_data.move_ids = moves
-        _logger.info("# Picking Data In : %s ", picking_data)
-        picking_in = (
-            self.env["stock.picking"]
-            .with_context(**context)
-            .create(picking_data.__dict__)
-        )
+        if TEABLE:
+            filter_list = [
+                {"fieldId": "Status", "operator": "is", "value": "Done"},
+                {"fieldId": "Status", "operator": "is", "value": "Done"},
+            ]
+            sort_list = [{"fieldId": "ID", "order": "asc"}]
+            finished_goods = TEABLE.get_records(table_id, filter_list, sort_list)
 
-        if picking_in.move_ids:
-            picking_in.action_assign()
-            if picking_in.state == "assigned":
-                picking_in.button_validate()
+            values = []
+            record_ids = []
+            for goods in finished_goods:
+                field_data = goods.get("fields")
+                product_dict = self.env["product.product"].search_read(
+                    [
+                        (
+                            "default_code",
+                            "=",
+                            field_data.get("Product").get("title"),
+                        )
+                    ],
+                    fields=["id", "default_code", "uom_id"],
+                )[0]
+
+                _logger.info("### product dict %s ", product_dict)
+
+                value = {
+                    "product_id": product_dict.get("id"),
+                    "uom_id": product_dict.get("uom_id")[0],
+                    "quantity": field_data.get("Finished_Qty"),
+                    "lot_name": field_data.get("Lot_No"),
+                    "price_unit": field_data.get("Cost"),
+                }
+                values.append(value)
+                record_ids.append(goods.get("id"))
+            _logger.info("#### values data list : %s ", values)
+
+            self.do_picking(values=values)
+            for record in record_ids:
+                TEABLE.update_record_by_id(
+                    table_id=table_id,
+                    record_id=record,
+                    update_fields={"received": "Received"},
+                )
+
+            _logger.info("# Picking Data In ")
