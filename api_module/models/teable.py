@@ -22,7 +22,7 @@ _logger = logging.getLogger(__name__)
 
 TEABLE = None
 
-LIMIT = 10
+LIMIT = 100
 
 
 class Teable(models.Model):
@@ -148,7 +148,10 @@ class Teable(models.Model):
     ):
 
         if record_list:
-            limit = LIMIT
+            limit = (
+                int(self.env["ir.config_parameter"].sudo().get_param("sync.batch"))
+                or LIMIT
+            )
             for records in self.split_by_batch(record_list, limit):
                 self.with_delay(
                     channel=channel,
