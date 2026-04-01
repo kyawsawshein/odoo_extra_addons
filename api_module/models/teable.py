@@ -2,12 +2,13 @@ import datetime
 import json
 import logging
 from datetime import datetime
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.tools.misc import DEFAULT_SERVER_DATETIME_FORMAT
 
+from ..datamodels.datamodel import TeablePartner, TeableProduct
 from ..helper.teable_endpoint import TeableAPIClient
 
 _logger = logging.getLogger(__name__)
@@ -48,11 +49,6 @@ class Teable(models.Model):
 
         return table_dict
 
-    # def get_client(self):
-    #     api = self.env["api.config"].search([("name", "=", "Teable AI")])
-    #     client = TeableAPIClient(database=api.database, api_token=api.token_key)
-    #     return client
-
     def teable_uom(self, table_dict: Dict) -> Dict:
         uom_teable = TEABLE.get_records(table_id=table_dict.get("uom"))
         uom_dict = {}
@@ -60,13 +56,43 @@ class Teable(models.Model):
             uom_dict[uom.get("fields").get("UOM")] = {"id": uom.get("id")}
         return uom_dict
 
-    def _update_record_table(
+    def _prepare_record(
+        self,
+        records: List,
+    ):
+        for rec in records:
+            for key, value in rec.items():
+                if isinstance(value, tuple):
+                    rec[key] = value[1]
+                if isinstance(value, bool):
+                    rec[key] = None
+                if key == "write_date":
+                    rec[key] = value.timestamp()
+
+        return records
+
+    def _update_table(
+        self,
+        records: List,
+        table_id: str,
+        unique_field: str,
+    ):
+        for rec in records:
+            try:
+                TEABLE.upsert_record(
+                    table_id=table_id,
+                    unique_field=unique_field,
+                    unique_value=rec.get(unique_field),
+                    update_fields=rec,
+                )
+
+            except Exception as err:
+                _logger.error("Error ", str(err))
+
+    def _prepare_product_table(
         self,
         uom_dict: Dict,
         records: List,
-        table: str,
-        unique_field: str,
-        unique_value: Any,
     ):
         for rec in records:
             for key, value in rec.items():
@@ -79,18 +105,8 @@ class Teable(models.Model):
                 if key == "write_date":
                     rec[key] = value.timestamp()
             _logger.info("Product %s", rec)
-            try:
-                TEABLE.upsert_record(
-                    table_id=table,
-                    unique_field=records,
-                    unique_value=unique_value,
-                    update_fields=rec,
-                )
 
-            except Exception as err:
-                _logger.error("Error ", str(err))
-
-    def sync_teable_ai(
+    def sync_teable_product(
         self,
         filter_domain: List = None,
         limit: int = 1000,
@@ -99,13 +115,16 @@ class Teable(models.Model):
         start_time = datetime.now()
         table_dict = self.get_table_id()
         _logger.info("#### Teable ID : %s ", table_dict)
-        table_id = table_dict.get("res_partner")
+        table_id = table_dict.get("product")
+        if not table_id:
+            raise ValidationError("Table Id not found!")
 
-        if TEABLE:
+        if self.check_client:
             uom_dict = self.teable_uom(table_dict)
             _logger.info("UOM dict : %s", uom_dict)
 
-            domain = []
+            domain = [("default_code", "=", True)]
+
             last_write_date = TEABLE.get_max_write_date_record(table_id)
             if last_write_date:
                 timestamp = last_write_date.get("fields").get("write_date")
@@ -118,49 +137,77 @@ class Teable(models.Model):
             if filter_domain:
                 domain.extend(filter_domain)
 
-            partners = self.search_read(
+            fields = TeableProduct.get_fields(TeableProduct)
+            products = self.env["product.product"].search_read(
                 domain,
-                fields=[
-                    "id",
-                    "default_code",
-                    "name",
-                    "barcode",
-                    "categ_id",
-                    "standard_price",
-                    "list_price",
-                    "qty_available",
-                    "uom_id",
-                    "write_date",
-                ],
+                fields=fields,
                 limit=limit,
                 order=order,
             )
-            _logger.info("Product total product count : %s .", len(partners))
+            _logger.info("Product total product count : %s .", len(products))
 
-            for partner in partners:
-                for key, value in partner.items():
-                    if isinstance(value, tuple):
-                        partner[key] = value[1]
-                    if isinstance(value, bool):
-                        partner[key] = None
-                    if key == "uom_id":
-                        partner[key] = uom_dict.get(value[1])
-                    if key == "write_date":
-                        partner[key] = value.timestamp()
-                _logger.info("Product %s", partner)
-                try:
-                    client.upsert_record(
-                        table="product",
-                        unique_field="id",
-                        unique_value=partner.get("id"),
-                        update_fields=partner,
-                    )
-                except Exception as err:
-                    _logger.error("Error ", str(err))
+            self._prepare_product_table(
+                uom_dict=uom_dict,
+                records=products,
+            )
+            self._update_table(
+                records=products, table_id=table_id, unique_field="default_code"
+            )
 
             end_time = datetime.now()
             _logger.info(
                 "Done Cron toaken time : %s for record count %s ",
                 end_time - start_time,
                 len(products),
+            )
+
+    def sync_table_partner(
+        self,
+        filter_domain: List = None,
+        limit: int = 10,
+        order: str = "write_date asc",
+    ):
+        start_time = datetime.now()
+        table_dict = self.get_table_id()
+        _logger.info("#### Teable ID : %s ", table_dict)
+        table_id = table_dict.get("partner")
+        if not table_id:
+            raise ValidationError("Table Id not found!")
+
+        if self.check_client:
+            domain = []
+            last_write_date = TEABLE.get_max_write_date_record(table_id)
+            _logger.info("##### last write date record %s ", last_write_date)
+            if last_write_date:
+                timestamp = last_write_date.get("fields").get("write_date")
+                if timestamp:
+                    write_date = datetime.fromtimestamp(timestamp).strftime(
+                        DEFAULT_SERVER_DATETIME_FORMAT
+                    )
+                    _logger.info("Write date %s ", write_date)
+                    domain.append(("write_date", ">", write_date))
+
+            if filter_domain:
+                domain.extend(filter_domain)
+
+            fields = TeablePartner.get_fields(TeablePartner)
+            _logger.info("#### partner fields %s ", fields)
+            partners = self.env["res.partner"].search_read(
+                domain,
+                fields=fields,
+                limit=limit,
+                order=order,
+            )
+            _logger.info("Partners total count : %s .", len(partners))
+            self._prepare_record(records=partners)
+            self._update_table(
+                records=partners,
+                table_id=table_dict.get("partner"),
+                unique_field="id",
+            )
+            end_time = datetime.now()
+            _logger.info(
+                "Done Cron toaken time : %s for record count %s ",
+                end_time - start_time,
+                len(partners),
             )

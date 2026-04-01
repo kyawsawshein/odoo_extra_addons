@@ -1,4 +1,4 @@
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 from datetime import date
 from enum import Enum
 from typing import List, Optional
@@ -17,18 +17,35 @@ def default_ids(x):
 
 
 @dataclass
-class TeableProduct:
-    name: str
-    location_dest_id: int
-    product_id: int
-    product_uom: int
-    product_uom_qty: Optional[float] = 0.0
-    price_unit: Optional[float] = 0.0
-    picking_type_id: Optional[int] = None
-    picking_id: Optional[int] = None
-    move_line_ids: Optional[List] = None
-    state: str = "confirmed"
-    uom_conversion_id: Optional[int] = None
-
+class BaseClass:
     def to_dict(self):
         return {k: v for k, v in asdict(self).items() if v is not None}
+
+    def get_fields(self):
+        return [f.name for f in fields(self)]
+
+
+@dataclass
+class TeableProduct(BaseClass):
+    id: int
+    default_code: str
+    name: str
+    barcode: str
+    categ_id: int
+    standard_price: float
+    list_price: float
+    qty_available: float
+    uom_id: int
+    write_date: int
+
+
+@dataclass
+class TeablePartner(BaseClass):
+    name: str
+    email: str
+    phone: str
+    country_id: int
+    vat: str
+    write_date: int
+    property_payment_term_id: Optional[int] = None
+    # property_supplier_payment_term_id: Optional[int] = None

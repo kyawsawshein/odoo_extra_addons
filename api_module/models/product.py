@@ -26,7 +26,6 @@ class Product:
 
 class ProductProduct(models.Model):
     _inherit = "product.product"
-    _description = "Teable AI"
 
     def get_table_id(self) -> Dict:
         table_dict = {}

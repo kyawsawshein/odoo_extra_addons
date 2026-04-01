@@ -38,16 +38,6 @@ class TeableAPIClient:
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
-
-        # Table IDs (update these with your actual table IDs)
-        # self.tables = {
-        #     "product": "tbl4j50Luypz4duYYuu",
-        #     "brand": "tbl2iNlguP42k34JZcg",
-        #     "uom": "tblwU13alfTr1KSCMNA",
-        #     "mo_finished_goods": "tbla31db4ASaex3Vqcn",
-        #     "stock": "tblRznG1PPWco82XPpx",
-        #     "sale_order_line": "tblvZe8sZ0CRrb9HdHw",
-        # }
         _logger.info("Teable AI Connected...")
 
     def execute_sql_query(self, sql: str) -> List[Dict[str, Any]]:
@@ -320,14 +310,14 @@ class TeableAPIClient:
                     f"Updating existing record with {unique_field} = {unique_value}"
                 )
                 return self.update_record_by_id(
-                    table, existing_record["id"], update_fields
+                    table_id, existing_record["id"], update_fields
                 )
             else:
                 # Create new record
                 _logger.info(
                     f"Creating new record with {unique_field} = {unique_value}"
                 )
-                return self.create_record(table, update_fields)
+                return self.create_record(table_id, update_fields)
 
         except Exception as e:
             _logger.error(f"Error in upsert operation: {e}")
@@ -353,9 +343,9 @@ class TeableAPIClient:
         params = {"fieldKeyType": "name"}
         return self._make_request(Method.GET, url, params=params)
 
-    def get_table_schema(self, table: str) -> Optional[Dict]:
+    def get_table_schema(self, table_id: str) -> Optional[Dict]:
         """Get table schema/fields"""
-        return self._make_request(Method.GET, f"/table/{table}/field")
+        return self._make_request(Method.GET, f"/table/{table_id}/field")
 
     def get_max_write_date_record(
         self, table_id: str, date_field: str = "write_date"
