@@ -2,7 +2,7 @@ import datetime
 import json
 import logging
 from datetime import datetime
-from typing import Dict
+from typing import Dict, List, Any
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
