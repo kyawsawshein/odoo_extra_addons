@@ -7,6 +7,8 @@
 # TEABLE ORIGIN: Phase 2 - Mini Odoo ERP in Teable.ai
 # ============================================
 
+from encodings.punycode import T
+
 import requests
 import json
 from typing import Optional, Dict, Any, List
@@ -17,7 +19,7 @@ from .teable_endpoint import TeableAPIClient
 from .teable_endpoint import Method
 
 
-class TeableRelationshipClient(TeableAPIClient):
+class TeableSaleOrderAPI(TeableAPIClient):
     """
     Teable API Client for handling one-to-many relationships
     Specifically designed for Zervi Azia's Odoo migration project
@@ -61,7 +63,7 @@ class TeableRelationshipClient(TeableAPIClient):
             # Step 2: Extract line IDs from the link field
             # In Teable, link fields are arrays of record IDs
             line_ids = order_data.get("fields", {}).get("order_lines", [])
-
+            line_table_id = "tblSaleOrderLine"
             if not line_ids:
                 return {"order": order_data, "lines": []}
             
@@ -151,7 +153,7 @@ class TeableRelationshipClient(TeableAPIClient):
     # ============================================
 
     def get_sale_orders_with_lines_batch(
-        self, order_table_id: str, line_table_id: str, order_ids: List[str]
+        self, table_id: str, line_table_id: str, order_ids: List[str]
     ) -> List[Dict[str, Any]]:
         """
         Get multiple sale orders with their lines in batch
@@ -181,7 +183,7 @@ class TeableRelationshipClient(TeableAPIClient):
     # ============================================
 
     def create_sale_order_with_lines(
-        self, order_data: Dict[str, Any], line_items: List[Dict[str, Any]]
+        self, table_id: str, order_data: Dict[str, Any], line_items: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
         """
         Create a Sale Order with its line items
@@ -197,26 +199,25 @@ class TeableRelationshipClient(TeableAPIClient):
         """
         try:
             # Step 1: Create the Sale Order
-            order_id = self.create_record("tblSaleOrder", order_data)
+            order_id = self.create_record(table_id, order_data)
 
             if not order_id:
                 return {"error": "Failed to create Sale Order"}
 
             # Step 2: Create line items with reference to the order
             created_lines = []
+            line_table_id = "tblSaleOrderLine"
             for line_item in line_items:
                 # Add order reference to each line
                 line_item["order_id"] = order_id
 
-                line_id = self.create_record("tblSaleOrderLine", line_item)
+                line_id = self.create_record(line_table_id, line_item)
                 if line_id:
                     created_lines.append(line_id)
 
             # Step 3: Update the Sale Order with line references
             if created_lines:
-                self.update_record(
-                    "tblSaleOrder", order_id, {"order_lines": created_lines}
-                )
+                self.update_record(table_id, order_id.get("id"), {"order_lines": created_lines})
 
             # Step 4: Return the complete order with lines
             return self.get_sale_order_with_lines_via_link(order_id)
@@ -231,24 +232,15 @@ class TeableRelationshipClient(TeableAPIClient):
 
     def _get_record_by_id(self, table_id: str, record_id: str) -> Optional[Dict[str, Any]]:
         """Get a single record by ID"""
-        try:
-            url = f"{self.base_url}/bases/{self.base_id}/tables/{table_id}/records/{record_id}"
-            params = {
-                "fieldKeyType": "dbFieldName",
-                "fields": "*"
-            }
-            
-            response = requests.get(url, headers=self.headers, params=params)
-            response.raise_for_status()
-            
-            return response.json()
-            
-        except Exception as e:
-            print(f"Error getting record by ID: {e}")
-            return None
+        endpoint = self.get_endpoint(table_id, record_id=record_id)
+        params = {
+            "fieldKeyType": "dbFieldName",
+            "fields": "*"
+        }
+        return self._make_request(Method.GET, endpoint=endpoint, json=params)
 
     def get_sale_order_expanded(
-        self, order_id: str, expand_fields: List[str] = None
+        self, table_id: str,order_id: str, expand_fields: List[str] = None
     ) -> Dict[str, Any]:
         """
         Get Sale Order with expanded related fields
@@ -265,8 +257,7 @@ class TeableRelationshipClient(TeableAPIClient):
         """
         try:
             # Get the order with all fields
-            order = self._get_record_by_id("tblSaleOrder", order_id)
-
+            order = self._get_record_by_id(table_id, order_id)
             if not order:
                 return {"error": "Order not found"}
 

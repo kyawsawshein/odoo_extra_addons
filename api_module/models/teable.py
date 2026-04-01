@@ -2,7 +2,7 @@ import datetime
 import json
 import logging
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
@@ -65,6 +65,18 @@ class Teable(models.Model):
             uom_dict[uom.get("fields").get("UOM")] = {"id": uom.get("id")}
         return uom_dict
 
+    def get_max_write_date(self, table_id: str) -> Optional[str]:
+        last_write_date = TEABLE.get_max_write_date_record(table_id)
+        _logger.info("##### last write date record %s ", last_write_date)
+        if last_write_date:
+            timestamp = last_write_date.get("fields").get("write_date")
+            if timestamp:
+                write_date = datetime.fromtimestamp(timestamp).strftime(
+                    DEFAULT_SERVER_DATETIME_FORMAT
+                )
+                return write_date
+        return None
+
     def _prepare_record(
         self,
         records: List,
@@ -82,7 +94,7 @@ class Teable(models.Model):
 
     def _update_table(
         self,
-        records: List,
+        records: List[Dict],
         table_id: str,
         unique_field: str,
     ):
@@ -101,7 +113,7 @@ class Teable(models.Model):
     def _prepare_product_table(
         self,
         uom_dict: Dict,
-        records: List,
+        records: List[Dict],
     ):
         for rec in records:
             for key, value in rec.items():
@@ -115,7 +127,7 @@ class Teable(models.Model):
                     rec[key] = value.timestamp()
             _logger.info("Product %s", rec)
 
-    def produce_product_table(self, table_id: str, products: List):
+    def produce_product_table(self, table_id: str, products: List[Dict]):
         table_dict = self.get_table_id()
         uom_dict = self.teable_uom(table_dict)
         self._prepare_product_table(
@@ -180,15 +192,10 @@ class Teable(models.Model):
 
         if self.check_client:
             domain = [("default_code", "!=", False)]
-            last_write_date = TEABLE.get_max_write_date_record(table_id)
-            if last_write_date:
-                timestamp = last_write_date.get("fields").get("write_date")
-                if timestamp:
-                    write_date = datetime.fromtimestamp(timestamp).strftime(
-                        DEFAULT_SERVER_DATETIME_FORMAT
-                    )
-                    _logger.info("Write date %s ", write_date)
-                    domain.append(("write_date", ">", write_date))
+            write_date = self.get_max_write_date(table_id)
+            if write_date:
+                _logger.info("Write date %s ", write_date)
+                domain.append(("write_date", ">", write_date))
 
             if filter_domain:
                 domain.extend(filter_domain)
@@ -228,16 +235,10 @@ class Teable(models.Model):
 
         if self.check_client:
             domain = []
-            last_write_date = TEABLE.get_max_write_date_record(table_id)
-            _logger.info("##### last write date record %s ", last_write_date)
-            if last_write_date:
-                timestamp = last_write_date.get("fields").get("write_date")
-                if timestamp:
-                    write_date = datetime.fromtimestamp(timestamp).strftime(
-                        DEFAULT_SERVER_DATETIME_FORMAT
-                    )
-                    _logger.info("Write date %s ", write_date)
-                    domain.append(("write_date", ">", write_date))
+            write_date = self.get_max_write_date(table_id)
+            if write_date:
+                _logger.info("Write date %s ", write_date)
+                domain.append(("write_date", ">", write_date))
 
             if filter_domain:
                 domain.extend(filter_domain)
@@ -279,16 +280,10 @@ class Teable(models.Model):
 
         if self.check_client:
             domain = []
-            last_write_date = TEABLE.get_max_write_date_record(table_id)
-            _logger.info("##### last write date record %s ", last_write_date)
-            if last_write_date:
-                timestamp = last_write_date.get("fields").get("write_date")
-                if timestamp:
-                    write_date = datetime.fromtimestamp(timestamp).strftime(
-                        DEFAULT_SERVER_DATETIME_FORMAT
-                    )
-                    _logger.info("Write date %s ", write_date)
-                    domain.append(("write_date", ">", write_date))
+            write_date = self.get_max_write_date(table_id)
+            if write_date:
+                _logger.info("Write date %s ", write_date)
+                domain.append(("write_date", ">", write_date))
 
             if filter_domain:
                 domain.extend(filter_domain)

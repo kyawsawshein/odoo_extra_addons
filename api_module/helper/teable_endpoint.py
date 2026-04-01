@@ -105,9 +105,28 @@ class TeableAPIClient:
 
         return endpoint
 
-    def get_payload(self, fields: Dict):
-        payload = {"fieldKeyType": "dbFieldName", "record": {"fields": fields}}
+    def get_payload(self, records: List[Dict]):
+        payload = {
+            "fieldKeyType": "dbFieldName",
+            "records": [{"fields": record} for record in records],
+        }
         return payload
+    
+    def get_params(self, filter_value: List[Dict] = None, sort_value: List[Dict] = None):
+        params = {
+                "fieldKeyType": "dbFieldName",
+                "filter": json.dumps(
+                    {
+                        "conjunction": "and",
+                        "filterSet": filter_value,
+                    }
+                ),
+                "orderBy": json.dumps(sort_value),
+                "cellFormat": "json",
+                "limit": 3,
+                "fields": "*",
+            }
+        return params
 
     def create_record(
         self, table_id: str, fields: Dict, field_key_type: str = "dbFieldName"
@@ -215,19 +234,14 @@ class TeableAPIClient:
         Returns:
             Updated record dictionary, or None if failed
         """
-        try:
-            endpoint = self.get_endpoint(table_id, record_id=record_id)
-            # Prepare update payload
-            payload = {
-                "fieldKeyType": "dbFieldName",
-                "record": {"fields": update_fields},
-            }
-            # PATCH method for partial update
-            return self._make_request(Method.PATCH, endpoint=endpoint, json=payload)
-
-        except requests.exceptions.RequestException as e:
-            _logger.error(f"Error updating record by ID: {e}")
-            return None
+        endpoint = self.get_endpoint(table_id, record_id=record_id)
+        # Prepare update payload
+        payload = {
+            "fieldKeyType": "dbFieldName",
+            "record": {"fields": update_fields},
+        }
+        # PATCH method for partial update
+        return self._make_request(Method.PATCH, endpoint=endpoint, json=payload)
 
     def find_record_by_field(
         self, table_id: str, field_name: str, field_value: Any
@@ -249,19 +263,7 @@ class TeableAPIClient:
                 {"fieldId": field_name, "operator": "is", "value": field_value},
             ]
             sort_value = [{"fieldId": field_name, "order": "asc"}]
-            params = {
-                "fieldKeyType": "dbFieldName",
-                "filter": json.dumps(
-                    {
-                        "conjunction": "and",
-                        "filterSet": filter_value,
-                    }
-                ),
-                "orderBy": json.dumps(sort_value),
-                "cellFormat": "json",
-                "limit": 3,
-                "fields": "*",
-            }
+            params = self.get_params(filter_value, sort_value)
 
             endpoint = self.get_endpoint(table_id)
             data = self._make_request(Method.GET, endpoint=endpoint, params=params)
@@ -281,7 +283,7 @@ class TeableAPIClient:
         unique_field: str,
         unique_value: Any,
         update_fields: Dict[str, Any],
-    ) -> Dict[str, Any]:
+    ) -> Dict:
         """
         Update if exists, insert if not exists (UPSERT)
 
@@ -307,9 +309,7 @@ class TeableAPIClient:
                 _logger.info(
                     f"Updating existing record with {unique_field} = {unique_value}"
                 )
-                return self.update_record_by_id(
-                    table_id, existing_record["id"], update_fields
-                )
+                return self.update_record_by_id(table_id, existing_record["id"], update_fields)
             else:
                 # Create new record
                 _logger.info(
