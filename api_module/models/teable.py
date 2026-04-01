@@ -262,3 +262,54 @@ class Teable(models.Model):
                 end_time - start_time,
                 len(partners),
             )
+
+
+    def sync_table_lot(
+        self,
+        filter_domain: List = None,
+        limit: int = 10,
+        order: str = "write_date asc",
+    ):
+        start_time = datetime.now()
+        table_dict = self.get_table_id()
+        _logger.info("#### Teable ID : %s ", table_dict)
+        table_id = table_dict.get("stock_lot")
+        if not table_id:
+            raise ValidationError("Table Id not found!")
+
+        if self.check_client:
+            domain = []
+            last_write_date = TEABLE.get_max_write_date_record(table_id)
+            _logger.info("##### last write date record %s ", last_write_date)
+            if last_write_date:
+                timestamp = last_write_date.get("fields").get("write_date")
+                if timestamp:
+                    write_date = datetime.fromtimestamp(timestamp).strftime(
+                        DEFAULT_SERVER_DATETIME_FORMAT
+                    )
+                    _logger.info("Write date %s ", write_date)
+                    domain.append(("write_date", ">", write_date))
+
+            if filter_domain:
+                domain.extend(filter_domain)
+
+            fields = TeablePartner.get_fields(TeablePartner)
+            _logger.info("#### Domain : %s  and Fiedls List : %s", domain, fields)
+            partners = self.env["res.partner"].search_read(
+                domain,
+                fields=fields,
+                limit=limit,
+                order=order,
+            )
+            _logger.info("Partners total count : %s .", len(partners))
+
+            self.with_delay_table_produce(
+                table_id=table_id, record_list=partners, method="product_partner_table"
+            )
+
+            end_time = datetime.now()
+            _logger.info(
+                "Done Cron toaken time : %s for record count %s ",
+                end_time - start_time,
+                len(partners),
+            )

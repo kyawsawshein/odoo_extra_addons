@@ -49,3 +49,14 @@ class TeablePartner(BaseClass):
     write_date: int
     property_payment_term_id: Optional[int] = None
     # property_supplier_payment_term_id: Optional[int] = None
+
+@dataclass
+class TeableStockLot(BaseClass):
+    name: str
+    email: str
+    phone: str
+    country_id: int
+    vat: str
+    write_date: int
+    property_payment_term_id: Optional[int] = None
+    # property_supplier_payment_term_id: Optional[int] = None

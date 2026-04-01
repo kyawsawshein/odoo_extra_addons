@@ -1,8 +1,9 @@
 import logging
+from itertools import groupby
 from typing import Dict, List
 
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 
 from ...data_commom.datamodels.datamodel import (
     SaleOrderData,
@@ -14,8 +15,8 @@ from ..helper.teable_endpoint import TeableAPIClient
 _logger = logging.getLogger(__name__)
 
 
-class SaleOrder(models.Model):
-    _inherit = "sale.order"
+class TeableAI(models.Model):
+    _inherit = "teable.ai"
 
     def add_line(
         self,
@@ -24,17 +25,23 @@ class SaleOrder(models.Model):
         return SaleOrderLineData(
             product_id=line.get("product_id"),
             product_uom_qty=line.get("uom_id"),
+            product_uom_id=line.get("product_uom_id"),
+            price_unit=line.get("price_unit"),
         )
 
-    def _prepare_sale_order(self, lines, sale_order: SaleOrderData):
+    def _prepare_sale_order(self, lines):
+
+        sale_order = SaleOrderData(
+            customer_id=customer_id,
+            date_order=fields.Datetime.now(),
+        )
         lines = []
         for line in lines:
-            _logger.info("### Line : %s", line)
             lines.append(default_ids(self.add_line(line)))
 
         sale_order.order_lines = lines
 
-    def prepare_sale_order(
+    def create_sale_order(
         self,
         customer_id: int,
     ) -> SaleOrderData:
@@ -44,47 +51,60 @@ class SaleOrder(models.Model):
         )
 
     def sync_table_sale_order(self):
-        table = "sale_order_line"
+        table = "sale_order"
+        table_dict = self.get_table_id()
+        table_id = table_dict.get(table)
+
         api = self.env["api.config"].search([("name", "=", "Teable AI")])
         client = TeableAPIClient(database=api.database, api_token=api.token_key)
-        filter_list = [
-            {"fieldId": "Status", "operator": "is", "value": "Done"},
-        ]
-        sort_list = [{"fieldId": "ID", "order": "asc"}]
-        table_order_line = client.get_records(table, filter_list, sort_list)
 
-        sale_order_data = self.prepare_sale_order(
-            customer_id=1,
-        )
+        if not table_id:
+            raise ValidationError("Table Id not found!")
 
-        values = []
-        for line in table_order_line:
-            _logger.info("==================== sale order line %s", line.get("fields"))
-            line_data = line.get("fields")
-            product_dict = self.env["product.product"].search_read(
-                [
-                    (
-                        "default_code",
-                        "=",
-                        line_data.get("Product").get("title"),
-                    )
-                ],
-                fields=["id", "default_code", "uom_id"],
-            )[0]
-            _logger.info("### product dict %s ", product_dict)
-            value = {
-                "product_id": product_dict.get("id"),
-                "uom_id": product_dict.get("uom_id")[0],
-                "quantity": line_data.get("Qty"),
-                # "price_unit": field_data.get("Cost"),
-            }
-            values.append(value)
-        _logger.info("#### values data list : %s ", values)
-        self._prepare_sale_order(lines=values, sale_order=sale_order_data)
-        _logger.info("# Picking Data In : %s ", sale_order_data)
-        sale_order = (
-            self.env["stock.picking"]
-            # .with_context(**context)
-            .create(sale_order_data.__dict__)
-        )
-        sale_order.button_validate()
+        if client:
+            filter_list = [
+                {"fieldId": "Status", "operator": "is", "value": "Confirmed"},
+            ]
+            sort_list = [{"fieldId": "Sale_Order", "order": "asc"}]
+            sale_order_line = client.get_records(table_id, filter_list, sort_list)
+
+            _logger.info("####### Sale order lines : %s ", sale_order_line)
+            values = []
+            record_ids = []
+            # for line in sale_order_line:
+            #     field_data = line.get("fields")
+            #     product_dict = self.env["product.product"].search_read(
+            #         [
+            #             (
+            #                 "default_code",
+            #                 "=",
+            #                 field_data.get("default_code").get("title"),
+            #             )
+            #         ],
+            #         fields=["id", "default_code", "uom_id"],
+            #     )[0]
+
+            #     _logger.info("### product dict %s ", product_dict)
+
+            #     value = {
+            #         "partner_id": "",
+            #         "product_id": product_dict.get("id"),
+            #         "product_uom_id": product_dict.get("uom_id")[0],
+            #         "product_uom_qty": field_data.get("Qty"),
+            #         "price_unit": field_data.get("Unit_Price"),
+            #     }
+            #     values.append(value)
+            #     record_ids.append(line.get("id"))
+            # _logger.info("#### values data list : %s ", values)
+
+            # for lines in groupby(values, key=lambda v: v[])
+
+            # self.create_sale_order(values=values)
+            # for record in record_ids:
+            #     client.update_record_by_id(
+            #         table_id=table_id,
+            #         record_id=record,
+            #         update_fields={"received": "Received"},
+            #     )
+
+            # _logger.info("# Picking Data In ")

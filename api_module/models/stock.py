@@ -117,7 +117,7 @@ class Teable(models.Model):
         if TEABLE:
             filter_list = [
                 {"fieldId": "Status", "operator": "is", "value": "Done"},
-                {"fieldId": "Status", "operator": "is", "value": "Done"},
+                {"fieldId": "Status", "operator": "isNot", "value": "Received"},
             ]
             sort_list = [{"fieldId": "ID", "order": "asc"}]
             finished_goods = TEABLE.get_records(table_id, filter_list, sort_list)

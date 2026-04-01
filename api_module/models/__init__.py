@@ -5,3 +5,4 @@ from . import stock
 from . import table
 from . import product
 from . import teable
+from . import sale

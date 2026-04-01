@@ -69,4 +69,5 @@ class SaleOrderData:
 class SaleOrderLineData:
     product_id: int
     product_uom_qty: date
+    product_uom_id: int
     price_unit: Optional[List] = None
