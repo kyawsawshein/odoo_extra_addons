@@ -14,7 +14,7 @@
         "security/ir.model.access.csv",
         "views/api_config_views.xml",
         "views/sync_job_views.xml",
-        "views/api_token_views.xml",
+        # "views/api_token_views.xml",
         "views/teable_ai_view.xml",
         "views/menu_views.xml",
         "data/cron_data.xml",
