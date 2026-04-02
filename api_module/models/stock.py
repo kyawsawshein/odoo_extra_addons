@@ -10,7 +10,7 @@ from ...data_commom.datamodels.datamodel import (
     PickingData,
     default_ids,
 )
-from ..helper.teable_endpoint import TeableAPIClient
+from ..helper.teable_mo import TeableManufactureAPI
 from .teable import TEABLE
 
 _logger = logging.getLogger(__name__)
@@ -159,3 +159,85 @@ class Teable(models.Model):
                 )
 
             _logger.info("# Picking Data In ")
+
+    def sync_table_mo(self):
+        table = "mo"
+        table_dict = self.get_table_id()
+        table_id = table_dict.get(table)
+        raw_table_id = table_dict.get("mo_raw")
+        goods_table_id = table_dict.get("mo_goods")
+
+        api = self.env["api.config"].search([("name", "=", "Teable AI")])
+        client = TeableManufactureAPI(database=api.database, api_token=api.token_key)
+
+        if not table_id:
+            raise ValidationError("Table Id not found!")
+
+        if client:
+            filter_list = [
+                {"fieldId": "Status", "operator": "is", "value": "Done"},
+                {"fieldId": "Sync", "operator": "isNot", "value": "Done"},
+            ]
+            sort_list = [{"fieldId": "ID", "order": "asc"}]
+            mo_order = client.get_records(table_id, filter_list, sort_list)
+
+            # _logger.info("##### MOM Manufacturing Plan data %s ", mo_data)
+            values = []
+            order_data = []
+            for order in mo_order:
+                _logger.info("#### MO Manufacturing %s ", order)
+                raw_ids = order.get("fields", {}).get("Production_Raw_Material", [])
+
+                raw_ids = order.get("fields", {}).get("Production_Raw_Material", [])
+                _logger.info("############### line_ids %s ", raw_ids)
+
+                # Step 3: Get all line items
+                raw_lines = client._get_multiple_records(raw_table_id, raw_ids)
+
+                goods_ids = order.get("fields", {}).get("Finished_Goods", [])
+                _logger.info("############### goods_ids %s ", goods_ids)
+                goods_lines = client._get_multiple_records(goods_table_id, goods_ids)
+
+                _logger.info("############### line data %s ", raw_lines)
+                order_data.append(
+                    {
+                        "order": order,
+                        "raw_lines": raw_lines,
+                        "goods_lines": goods_lines,
+                    }
+                )
+                client.get_orders_with_lines_batch()
+                # product_dict = self.env["product.product"].search_read(
+                #     [
+                #         (
+                #             "default_code",
+                #             "=",
+                #             field_data.get("Product").get("title"),
+                #         )
+                #     ],
+                #     fields=["id", "default_code", "uom_id"],
+                # )[0]
+
+                # _logger.info("### product dict %s ", product_dict)
+
+            #     value = {
+            #         "product_id": product_dict.get("id"),
+            #         "uom_id": product_dict.get("uom_id")[0],
+            #         "quantity": field_data.get("Finished_Qty"),
+            #         "lot_name": field_data.get("Lot_No"),
+            #         "price_unit": field_data.get("Cost"),
+            #     }
+
+            #     values.append(value)
+            #     record_ids.append(goods.get("id"))
+            # _logger.info("#### values data list : %s ", values)
+
+            # self.do_picking(values=values)
+            # for record in record_ids:
+            #     TEABLE.update_record_by_id(
+            #         table_id=table_id,
+            #         record_id=record,
+            #         update_fields={"received": "Received"},
+            #     )
+
+            # _logger.info("# Picking Data In ")

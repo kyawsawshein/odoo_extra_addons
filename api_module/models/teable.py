@@ -23,7 +23,7 @@ _logger = logging.getLogger(__name__)
 
 TEABLE = None
 
-LIMIT = 100
+LIMIT = 20
 
 
 class Teable(models.Model):
@@ -73,9 +73,7 @@ class Teable(models.Model):
         if last_write_date:
             timestamp = last_write_date.get("fields").get("write_date")
             if timestamp:
-                write_date = datetime.fromtimestamp(timestamp).strftime(
-                    DEFAULT_SERVER_DATETIME_FORMAT
-                )
+                write_date = datetime.fromtimestamp(timestamp)
                 return write_date
         return write_date
 
