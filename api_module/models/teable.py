@@ -15,8 +15,9 @@ from ...data_commom.datamodels.datamodel import (
     PickingData,
     default_ids,
 )
-from ..datamodels.datamodel import TeablePartner, TeableProduct
+from ..datamodels.datamodel import TeablePartner, TeableProduct, TeableStockLot
 from ..helper.teable_endpoint import TeableAPIClient
+from ..query.query import StockSQL
 
 _logger = logging.getLogger(__name__)
 
@@ -99,16 +100,12 @@ class Teable(models.Model):
         unique_field: str,
     ):
         for rec in records:
-            try:
-                TEABLE.upsert_record(
-                    table_id=table_id,
-                    unique_field=unique_field,
-                    unique_value=rec.get(unique_field),
-                    update_fields=rec,
-                )
-
-            except Exception as err:
-                _logger.error("Error ", str(err))
+            TEABLE.upsert_record(
+                table_id=table_id,
+                unique_field=unique_field,
+                unique_value=rec.get(unique_field),
+                update_fields=rec,
+            )
 
     def _prepare_product_table(
         self,
@@ -144,6 +141,30 @@ class Teable(models.Model):
             records=partners,
             table_id=table_id,
             unique_field="id",
+        )
+
+    def produce_stock_lot_table(self, table_id: str, stock_lots: List[Dict]):
+        table = "product"
+        table_dict = self.get_table_id()
+        product_table_id = table_dict.get(table)
+        if not product_table_id:
+            raise ValidationError("Product table id not found!")
+
+        for lot in stock_lots:
+            for key, value in lot.items():
+                if key == "product":
+                    product = TEABLE.find_product_by_code(
+                        table_id=product_table_id,
+                        field_name="default_code",
+                        field_value=value,
+                    )
+                    _logger.info("##### product table data %s", product)
+                    lot[key] = product
+
+        self._update_table(
+            records=stock_lots,
+            table_id=table_id,
+            unique_field="name",
         )
 
     @staticmethod
@@ -185,7 +206,6 @@ class Teable(models.Model):
     ):
         start_time = datetime.now()
         table_dict = self.get_table_id()
-        _logger.info("#### Teable ID : %s ", table_dict)
         table_id = table_dict.get("product")
         if not table_id:
             raise ValidationError("Table Id not found!")
@@ -223,12 +243,11 @@ class Teable(models.Model):
     def sync_table_partner(
         self,
         filter_domain: List = None,
-        limit: int = 10,
+        limit: int = 100,
         order: str = "write_date asc",
     ):
         start_time = datetime.now()
         table_dict = self.get_table_id()
-        _logger.info("#### Teable ID : %s ", table_dict)
         table_id = table_dict.get("partner")
         if not table_id:
             raise ValidationError("Table Id not found!")
@@ -264,7 +283,6 @@ class Teable(models.Model):
                 len(partners),
             )
 
-
     def sync_table_lot(
         self,
         filter_domain: List = None,
@@ -273,38 +291,30 @@ class Teable(models.Model):
     ):
         start_time = datetime.now()
         table_dict = self.get_table_id()
-        _logger.info("#### Teable ID : %s ", table_dict)
         table_id = table_dict.get("stock_lot")
         if not table_id:
             raise ValidationError("Table Id not found!")
 
         if self.check_client:
-            domain = []
-            write_date = self.get_max_write_date(table_id)
-            if write_date:
-                _logger.info("Write date %s ", write_date)
-                domain.append(("write_date", ">", write_date))
+            write_date = "1970-03-19"
+            max_write_date = self.get_max_write_date(table_id)
+            if max_write_date:
+                _logger.info("Write date %s ", max_write_date)
+                write_date = max_write_date
 
-            if filter_domain:
-                domain.extend(filter_domain)
-
-            fields = TeablePartner.get_fields(TeablePartner)
-            _logger.info("#### Domain : %s  and Fiedls List : %s", domain, fields)
-            partners = self.env["res.partner"].search_read(
-                domain,
-                fields=fields,
-                limit=limit,
-                order=order,
-            )
-            _logger.info("Partners total count : %s .", len(partners))
+            self.env.cr.execute(StockSQL.stock_lot, (write_date,))
+            stock_lots = self.env.cr.dictfetchall()
+            _logger.info("Stock lot total count : %s .", len(stock_lots))
 
             self.with_delay_table_produce(
-                table_id=table_id, record_list=partners, method="product_partner_table"
+                table_id=table_id,
+                record_list=stock_lots,
+                method="produce_stock_lot_table",
             )
 
             end_time = datetime.now()
             _logger.info(
                 "Done Cron toaken time : %s for record count %s ",
                 end_time - start_time,
-                len(partners),
+                len(stock_lots),
             )

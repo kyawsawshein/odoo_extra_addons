@@ -29,24 +29,12 @@ class TeableAI(models.Model):
             price_unit=line.get("price_unit"),
         )
 
-    def _prepare_sale_order(self, lines):
-
-        sale_order = SaleOrderData(
-            customer_id=customer_id,
-            date_order=fields.Datetime.now(),
-        )
-        lines = []
-        for line in lines:
-            lines.append(default_ids(self.add_line(line)))
-
-        sale_order.order_lines = lines
-
     def prepare_order(
         self,
         customer_id: int,
     ) -> SaleOrderData:
         return SaleOrderData(
-            customer_id=customer_id,
+            partner_id=customer_id,
             date_order=fields.Datetime.now(),
         )
 
@@ -69,21 +57,29 @@ class TeableAI(models.Model):
         if client:
             filter_list = [
                 {"fieldId": "Status", "operator": "is", "value": "Confirmed"},
+                {"fieldId": "Sync", "operator": "is", "value": "Pending"},
             ]
             sort_list = [{"fieldId": "Sale_Order", "order": "asc"}]
-            sale_order = client.get_records(table_id, filter_list, sort_list)
-            order_ids = [order.get("id") for order in sale_order]
+            table_sale_order = client.get_records(table_id, filter_list, sort_list)
+            table_order_ids = [order.get("id") for order in table_sale_order]
 
-            _logger.info("####### Sale order lines : %s ", sale_order)
-            sale_order_data = client.get_sale_orders_with_lines_batch(table_id=table_id, line_table_id=line_table_id, order_ids=order_ids)
-
+            _logger.info("####### Sale order : %s ", table_sale_order)
+            _logger.info("#### sale order ids ", table_order_ids)
+            table_sale_order_data = client.get_sale_orders_with_lines_batch(
+                table_id=table_id,
+                line_table_id=line_table_id,
+                order_ids=table_order_ids,
+            )
+            _logger.info("### sale order data %s", table_sale_order_data)
             values = []
             record_ids = []
-            for sale_order in sale_order_data:
-                order = sale_order.get("order")
-                lines = sale_order.get("lines")
+            for table_order in table_sale_order_data:
+                tb_order = table_order.get("order")
+                tb_order_line = table_order.get("lines")
+                _logger.info("### Order ### %s ", tb_order)
+                _logger.info("### Order Line ### %s ", tb_order_line)
                 order_line = []
-                for line in lines:
+                for line in tb_order_line:
                     field_data = line.get("fields")
                     product_dict = self.env["product.product"].search_read(
                         [
@@ -102,18 +98,34 @@ class TeableAI(models.Model):
                         price_unit=field_data.get("Unit_Price"),
                     )
                     order_line.append(default_ids(line))
-                    order = self.prepare_order(order.get("Customer_id"))
-                    order.order_lines = order_line
+                _logger.info(
+                    "##### Table order customer %s",
+                    tb_order.get("fields").get("Customer").get("title"),
+                )
+                partner = self.env["res.partner"].search_read(
+                    [
+                        (
+                            "name",
+                            "=",
+                            tb_order.get("fields").get("Customer").get("title"),
+                        )
+                    ],
+                    fields=["name"],
+                    limit=1,
+                )[0]
+                _logger.info("######### Partner %s ", partner)
+                sale_order = self.prepare_order(customer_id=partner.get("id"))
+                sale_order.order_line = order_line
 
-                values.append(value)
-                record_ids.append(order.get("id"))
+                values.append(sale_order.__dict__)
+                record_ids.append(tb_order.get("id"))
             _logger.info("#### values data list : %s ", values)
-
+            _logger.info("#### record ids : %s ", record_ids)
             self.create_sale_order(values=values)
             for record in record_ids:
                 client.update_record_by_id(
                     table_id=table_id,
                     record_id=record,
-                    update_fields={"received": "Received"},
+                    update_fields={"Sync": "Sync"},
                 )
             _logger.info("# Picking Data In ")

@@ -111,21 +111,25 @@ class TeableAPIClient:
             "records": [{"fields": record} for record in records],
         }
         return payload
-    
-    def get_params(self, filter_value: List[Dict] = None, sort_value: List[Dict] = None):
+
+    def get_params(
+        self,
+        filter_value: List[Dict] = None,
+        sort_value: List[Dict] = None,
+    ):
         params = {
-                "fieldKeyType": "dbFieldName",
-                "filter": json.dumps(
-                    {
-                        "conjunction": "and",
-                        "filterSet": filter_value,
-                    }
-                ),
-                "orderBy": json.dumps(sort_value),
-                "cellFormat": "json",
-                "limit": 3,
-                "fields": "*",
-            }
+            "fieldKeyType": "dbFieldName",
+            "filter": json.dumps(
+                {
+                    "conjunction": "and",
+                    "filterSet": filter_value,
+                }
+            ),
+            "orderBy": json.dumps(sort_value),
+            "cellFormat": "json",
+            "limit": 3,
+            "fields": "*",
+        }
         return params
 
     def create_record(
@@ -277,6 +281,23 @@ class TeableAPIClient:
             _logger.error(f"Error finding record by field: {e}")
             return None
 
+    def find_product_by_code(
+        self, table_id: str, field_name: str, field_value: str
+    ) -> Optional[Dict]:
+        """Find Product record by product_code"""
+        params = {
+            "limit": 1,
+            "fields": "id,default_code",
+        }
+        filter_value = [
+            {"fieldId": field_name, "operator": "is", "value": field_value},
+        ]
+        data = self.get_records(
+            table_id=table_id, filter_list=filter_value, params=params
+        )
+        _logger.info("### Find product by code %s ", data)
+        return data
+
     def upsert_record(
         self,
         table_id: str,
@@ -286,9 +307,7 @@ class TeableAPIClient:
     ) -> Dict:
         """
         Update if exists, insert if not exists (UPSERT)
-
         This is useful for Odoo migration where you want to sync data
-
         Args:
             table: The ID of the table
             unique_field: Field that should be unique (e.g., 'product_code')
@@ -298,28 +317,23 @@ class TeableAPIClient:
         Returns:
             Created or updated record
         """
-        try:
-            # Check if record exists
-            existing_record = self.find_record_by_field(
-                table_id, unique_field, unique_value
+        # Check if record exists
+        existing_record = self.find_record_by_field(
+            table_id, unique_field, unique_value
+        )
+
+        if existing_record:
+            # Update existing record
+            _logger.info(
+                f"Updating existing record with {unique_field} = {unique_value}"
             )
-
-            if existing_record:
-                # Update existing record
-                _logger.info(
-                    f"Updating existing record with {unique_field} = {unique_value}"
-                )
-                return self.update_record_by_id(table_id, existing_record["id"], update_fields)
-            else:
-                # Create new record
-                _logger.info(
-                    f"Creating new record with {unique_field} = {unique_value}"
-                )
-                return self.create_record(table_id, update_fields)
-
-        except Exception as e:
-            _logger.error(f"Error in upsert operation: {e}")
-            return {}
+            return self.update_record_by_id(
+                table_id, existing_record["id"], update_fields
+            )
+        else:
+            # Create new record
+            _logger.info(f"Creating new record with {unique_field} = {unique_value}")
+            return self.create_record(table_id, update_fields)
 
     def delete_record(self, table_id: str, record_id: str) -> bool:
         """
@@ -357,31 +371,24 @@ class TeableAPIClient:
         Returns:
             Dictionary containing the record with maximum write_date, or None if no records
         """
-        try:
-            # Build the URL for the records endpoint
-            endpoint = self.get_endpoint(table_id)
-            # Query parameters: sort by write_date descending, limit to 1 record
-            params = {
-                "fieldKeyType": "dbFieldName",
-                "cellFormat": "json",
-                "orderBy": json.dumps([{"fieldId": date_field, "order": "desc"}]),
-                "pageSize": 1,
-                "page": 1,
-                "fields": "*",  # Get all fields
-            }
-            _logger.info("Params %s ", params)
-            result = self._make_request(
-                method=Method.GET, endpoint=endpoint, params=params
-            )
-            # _logger.info("result : %s ", result)
-            if result and result.get("records") and len(result["records"]) > 0:
-                return result["records"][0]
-            else:
-                _logger.error(f"No records found in table {table_id}")
-                return None
-
-        except requests.exceptions.RequestException as e:
-            _logger.error(f"Error fetching max write_date record: {e}")
+        # Build the URL for the records endpoint
+        endpoint = self.get_endpoint(table_id)
+        # Query parameters: sort by write_date descending, limit to 1 record
+        params = {
+            "fieldKeyType": "dbFieldName",
+            "cellFormat": "json",
+            "orderBy": json.dumps([{"fieldId": date_field, "order": "desc"}]),
+            "pageSize": 1,
+            "page": 1,
+            "fields": "*",  # Get all fields
+        }
+        _logger.info("Params %s ", params)
+        result = self._make_request(method=Method.GET, endpoint=endpoint, params=params)
+        # _logger.info("result : %s ", result)
+        if result and result.get("records") and len(result["records"]) > 0:
+            return result["records"][0]
+        else:
+            _logger.error(f"No records found in table {table_id}")
             return None
 
     def get_max_write_date_value(
@@ -415,23 +422,18 @@ class TeableAPIClient:
         Returns:
             List of records after the specified date
         """
-        try:
-            # Filter formula: date_field > after_date
-            # Note: Teable uses formulas similar to Airtable
-            filter_formula = f"{{{date_field}}} > '{after_date}'"
-            params = {
-                "filterByFormula": filter_formula,
-                "sort": date_field,  # Ascending order
-                "limit": limit,
-                "fields": "*",
-            }
-            endpoint = self.get_endpoint(table_id)
-            result = self._make_request(Method.GET, endpoint, params=params)
-            return result.get("records", [])
-
-        except requests.exceptions.RequestException as e:
-            _logger.error(f"Error fetching records after date: {e}")
-            return []
+        # Filter formula: date_field > after_date
+        # Note: Teable uses formulas similar to Airtable
+        filter_formula = f"{{{date_field}}} > '{after_date}'"
+        params = {
+            "filterByFormula": filter_formula,
+            "sort": date_field,  # Ascending order
+            "limit": limit,
+            "fields": "*",
+        }
+        endpoint = self.get_endpoint(table_id)
+        result = self._make_request(Method.GET, endpoint, params=params)
+        return result.get("records", [])
 
     def download_complete_schema(self, base: str):
         """Download complete schema including tables and fields"""
@@ -493,42 +495,3 @@ client = TeableAPIClient(
     api_token="teable_acc65mmZVTtEo9VcPja_M/ACnbw8UHoLtGX6HW52TYUgUArZegSjHQ3MTvNecwE=",
     base_url="https://teable-team-zervi-u34072.vm.elestio.app/api",
 )
-
-# field = {
-#     "id": 110396,
-#     "default_code": "LBR-10508",
-#     "name": "Label RAZOR BACK",
-#     "barcode": "LBR-10508",
-#     "categ_id": "RM / Labels and  Badges",
-#     "standard_price": 10.53030303030303,
-#     "list_price": 1.0,
-#     "qty_available": 112.0,
-#     "uom_id": {"id": "recvxlSQn1zVotT1ifJ"},
-#     "write_date": 1773903323.922646,
-# }
-
-# client.create_record(table="product", fields=field)
-
-
-# client.update_record(
-#     table="product", record_id="recoyZY1WUxSYnTnAcI", fields={"barcode": "AAA"}
-# )
-
-# client.upsert_record(
-#     table="product",
-#     unique_field="id",
-#     unique_value="6",
-#     update_fields={"barcode": "AAA5"},
-# )
-
-# write_date = client.get_max_write_date_record(table="product")
-# print(write_date)
-
-# uom_dict = {}
-# uoms = client.get_records(table="uom").get("records")
-# for uom in uoms:
-#     # print(uom.get("id"))
-#     # print(uom.get("fields").get("UOM"))
-#     uom_dict[uom.get("fields").get("UOM")] = {"id": uom.get("id")}
-
-# print(uom_dict)

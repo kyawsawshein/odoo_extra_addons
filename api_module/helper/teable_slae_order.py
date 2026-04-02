@@ -7,16 +7,17 @@
 # TEABLE ORIGIN: Phase 2 - Mini Odoo ERP in Teable.ai
 # ============================================
 
+import json
+import logging
+from datetime import datetime
 from encodings.punycode import T
+from typing import Any, Dict, List, Optional
 
 import requests
-import json
-from typing import Optional, Dict, Any, List
-from datetime import datetime
 
+from .teable_endpoint import Method, TeableAPIClient
 
-from .teable_endpoint import TeableAPIClient
-from .teable_endpoint import Method
+_logger = logging.getLogger(__name__)
 
 
 class TeableSaleOrderAPI(TeableAPIClient):
@@ -30,7 +31,7 @@ class TeableSaleOrderAPI(TeableAPIClient):
     # ============================================
 
     def get_sale_order_with_lines_via_link(
-        self, table_id: str, order_id: str
+        self, table_id: str, line_table_id: str, order_id: str
     ) -> Dict[str, Any]:
         """
         Get Sale Order with its lines using link field references
@@ -48,28 +49,30 @@ class TeableSaleOrderAPI(TeableAPIClient):
         """
         try:
             # Step 1: Get the Sale Order record
-            params = {
-                "fieldKeyType": "dbFieldName",
-                "fields": "*",  # Get all fields including link fields
-            }
+            # params = {
+            #     "fieldKeyType": "dbFieldName",
+            #     "fields": "*",  # Get all fields including link fields
+            # }
+            params = self.get_params()
             endpoint = self.get_endpoint(table_id=table_id, record_id=order_id)
             order_data = self._make_request(
-                method=Method.GET, endpoint=endpoint, json=params
+                method=Method.GET, endpoint=endpoint, params=params
             )
 
             if not order_data:
                 return {"error": "Sale Order not found"}
-
+            _logger.info("################ order data %s", order_data)
             # Step 2: Extract line IDs from the link field
             # In Teable, link fields are arrays of record IDs
-            line_ids = order_data.get("fields", {}).get("order_lines", [])
-            line_table_id = "tblSaleOrderLine"
+            line_ids = order_data.get("fields", {}).get("Sales_Order_Lines", [])
+
+            _logger.info("############### line_ids %s ", line_ids)
             if not line_ids:
                 return {"order": order_data, "lines": []}
-            
+
             # Step 3: Get all line items
             lines = self._get_multiple_records(line_table_id, line_ids)
-
+            _logger.info("############### line data %s ", lines)
             return {"order": order_data, "lines": lines}
 
         except requests.exceptions.RequestException as e:
@@ -92,11 +95,11 @@ class TeableSaleOrderAPI(TeableAPIClient):
         try:
             # Teable might support batch GET or we need to fetch individually
             all_records = []
-            for record_id in record_ids:
-                endpoint = self.get_endpoint(table_id, record_id)
-                params = {"fieldKeyType": "dbFieldName", "fields": "*"}
+            params = self.get_params()
+            for record in record_ids:
+                endpoint = self.get_endpoint(table_id, record.get("id"))
                 response = self._make_request(
-                    method=Method.GET, endpoint=endpoint, json=params
+                    method=Method.GET, endpoint=endpoint, params=params
                 )
                 all_records.append(response)
             return all_records
@@ -168,7 +171,9 @@ class TeableSaleOrderAPI(TeableAPIClient):
             all_results = []
 
             for order_id in order_ids:
-                result = self.get_sale_order_with_lines_via_link(table_id, order_id)
+                result = self.get_sale_order_with_lines_via_link(
+                    table_id, line_table_id, order_id
+                )
                 if "error" not in result:
                     all_results.append(result)
 
@@ -183,7 +188,10 @@ class TeableSaleOrderAPI(TeableAPIClient):
     # ============================================
 
     def create_sale_order_with_lines(
-        self, table_id: str, order_data: Dict[str, Any], line_items: List[Dict[str, Any]]
+        self,
+        table_id: str,
+        order_data: Dict[str, Any],
+        line_items: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """
         Create a Sale Order with its line items
@@ -217,7 +225,9 @@ class TeableSaleOrderAPI(TeableAPIClient):
 
             # Step 3: Update the Sale Order with line references
             if created_lines:
-                self.update_record(table_id, order_id.get("id"), {"order_lines": created_lines})
+                self.update_record(
+                    table_id, order_id.get("id"), {"order_lines": created_lines}
+                )
 
             # Step 4: Return the complete order with lines
             return self.get_sale_order_with_lines_via_link(order_id)
@@ -230,17 +240,16 @@ class TeableSaleOrderAPI(TeableAPIClient):
     # METHOD 5: Advanced Query with Field Expansion
     # ============================================
 
-    def _get_record_by_id(self, table_id: str, record_id: str) -> Optional[Dict[str, Any]]:
+    def _get_record_by_id(
+        self, table_id: str, record_id: str
+    ) -> Optional[Dict[str, Any]]:
         """Get a single record by ID"""
         endpoint = self.get_endpoint(table_id, record_id=record_id)
-        params = {
-            "fieldKeyType": "dbFieldName",
-            "fields": "*"
-        }
+        params = {"fieldKeyType": "dbFieldName", "fields": "*"}
         return self._make_request(Method.GET, endpoint=endpoint, json=params)
 
     def get_sale_order_expanded(
-        self, table_id: str,order_id: str, expand_fields: List[str] = None
+        self, table_id: str, order_id: str, expand_fields: List[str] = None
     ) -> Dict[str, Any]:
         """
         Get Sale Order with expanded related fields
@@ -278,7 +287,9 @@ class TeableSaleOrderAPI(TeableAPIClient):
                             result[field] = related_records
                         else:
                             # Single reference
-                            related_record = self._get_record_by_id(table_id, field_value)
+                            related_record = self._get_record_by_id(
+                                table_id, field_value
+                            )
                             result[field] = related_record
 
             return result

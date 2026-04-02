@@ -60,9 +60,9 @@ class PickingData:
 
 @dataclass
 class SaleOrderData:
-    customer_id: int
+    partner_id: int
     date_order: date
-    order_lines: Optional[List] = None
+    order_line: Optional[List] = None
 
 
 @dataclass
