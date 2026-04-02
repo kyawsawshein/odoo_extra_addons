@@ -17,7 +17,7 @@ from ...data_commom.datamodels.datamodel import (
 )
 from ..datamodels.datamodel import TeablePartner, TeableProduct, TeableStockLot
 from ..helper.teable_endpoint import TeableAPIClient
-from ..query.query import StockSQL
+from ..query.query import PartnerSQL, ProductSQL, StockSQL
 
 _logger = logging.getLogger(__name__)
 
@@ -67,6 +67,7 @@ class Teable(models.Model):
         return uom_dict
 
     def get_max_write_date(self, table_id: str) -> Optional[str]:
+        write_date = "1970-03-19"
         last_write_date = TEABLE.get_max_write_date_record(table_id)
         _logger.info("##### last write date record %s ", last_write_date)
         if last_write_date:
@@ -76,11 +77,11 @@ class Teable(models.Model):
                     DEFAULT_SERVER_DATETIME_FORMAT
                 )
                 return write_date
-        return None
+        return write_date
 
     def _prepare_record(
         self,
-        records: List,
+        records: List[Dict],
     ):
         for rec in records:
             for key, value in rec.items():
@@ -107,43 +108,16 @@ class Teable(models.Model):
                 update_fields=rec,
             )
 
-    def _prepare_product_table(
-        self,
-        uom_dict: Dict,
-        records: List[Dict],
-    ):
-        for rec in records:
-            for key, value in rec.items():
-                if isinstance(value, (tuple, list)):
-                    rec[key] = value[1]
-                if isinstance(value, bool):
-                    rec[key] = value or None
-                if key == "uom_id":
-                    rec[key] = uom_dict.get(value[1])
-                if key == "write_date":
-                    rec[key] = value.timestamp()
-            _logger.info("Product %s", rec)
-
-    def produce_product_table(self, table_id: str, products: List[Dict]):
+    def _prepare_product_table(self, records: List[Dict]):
         table_dict = self.get_table_id()
         uom_dict = self.teable_uom(table_dict)
-        self._prepare_product_table(
-            uom_dict=uom_dict,
-            records=products,
-        )
-        self._update_table(
-            records=products, table_id=table_id, unique_field="default_code"
-        )
+        for rec in records:
+            for key, value in rec.items():
+                if key == "uom_id":
+                    rec[key] = uom_dict.get(value)
+            _logger.info("Product %s", rec)
 
-    def product_partner_table(self, table_id: str, partners: List[Dict]):
-        self._prepare_record(records=partners)
-        self._update_table(
-            records=partners,
-            table_id=table_id,
-            unique_field="id",
-        )
-
-    def produce_stock_lot_table(self, table_id: str, stock_lots: List[Dict]):
+    def prepare_stock_lot_table(self, stock_lots: List[Dict]):
         table = "product"
         table_dict = self.get_table_id()
         product_table_id = table_dict.get(table)
@@ -161,10 +135,11 @@ class Teable(models.Model):
                     _logger.info("##### product table data %s", product)
                     lot[key] = product
 
+    def produce_table(self, table_id: str, stock_lots: List[Dict], unique_field: str):
         self._update_table(
             records=stock_lots,
             table_id=table_id,
-            unique_field="name",
+            unique_field=unique_field,
         )
 
     @staticmethod
@@ -177,6 +152,7 @@ class Teable(models.Model):
         table_id: str,
         record_list: List[Dict],
         method: str,
+        unique_field: str,
         channel: str = "root",
     ):
 
@@ -189,13 +165,20 @@ class Teable(models.Model):
                 self.with_delay(
                     channel=channel,
                     description=f"Teable AI Sync Table : {table_id}, methbod {method} : {len(records)}",
-                ).produce(table_id=table_id, records=records, method=method)
+                ).produce(
+                    table_id=table_id,
+                    records=records,
+                    method=method,
+                    unique_field=unique_field,
+                )
 
-    def produce(self, table_id: str, records: List[Dict], method: str):
+    def produce(
+        self, table_id: str, records: List[Dict], method: str, unique_field: str
+    ):
         with Registry(self.env.cr.dbname).cursor() as new_cr:
             new_env = api.Environment(new_cr, self.env.uid, self.env.context)
             teable = new_env["teable.ai"]
-            getattr(teable, method)(table_id, records)
+            getattr(teable, method)(table_id, records, unique_field)
             _logger.info("###### Done job")
 
     def sync_teable_product(
@@ -213,26 +196,20 @@ class Teable(models.Model):
         if self.check_client:
             domain = [("default_code", "!=", False)]
             write_date = self.get_max_write_date(table_id)
-            if write_date:
-                _logger.info("Write date %s ", write_date)
-                domain.append(("write_date", ">", write_date))
+            _logger.info("Write date %s ", write_date)
+            domain.append(("write_date", ">", write_date))
 
-            if filter_domain:
-                domain.extend(filter_domain)
-
-            fields = TeableProduct.get_fields(TeableProduct)
-            _logger.info("#### Domain : %s  and Fiedls List : %s", domain, fields)
-            products = self.env["product.product"].search_read(
-                domain,
-                fields=fields,
-                limit=limit,
-                order=order,
-            )
+            self.env.cr.execute(ProductSQL.producdt, (write_date,))
+            products = self.env.cr.dictfetchall()
             _logger.info("Product total product count : %s .", len(products))
+            self._prepare_product_table(records=products)
+            _logger.info("###### product %s ", products)
             self.with_delay_table_produce(
-                table_id=table_id, record_list=products, method="produce_product_table"
+                table_id=table_id,
+                record_list=products,
+                method="produce_table",
+                unique_field="default_code",
             )
-
             end_time = datetime.now()
             _logger.info(
                 "Done Cron toaken time : %s for record count %s ",
@@ -253,27 +230,18 @@ class Teable(models.Model):
             raise ValidationError("Table Id not found!")
 
         if self.check_client:
-            domain = []
             write_date = self.get_max_write_date(table_id)
-            if write_date:
-                _logger.info("Write date %s ", write_date)
-                domain.append(("write_date", ">", write_date))
+            _logger.info("Write date %s ", write_date)
 
-            if filter_domain:
-                domain.extend(filter_domain)
-
-            fields = TeablePartner.get_fields(TeablePartner)
-            _logger.info("#### Domain : %s  and Fiedls List : %s", domain, fields)
-            partners = self.env["res.partner"].search_read(
-                domain,
-                fields=fields,
-                limit=limit,
-                order=order,
-            )
+            self.env.cr.execute(PartnerSQL.partner, (write_date,))
+            partners = self.env.cr.dictfetchall()
             _logger.info("Partners total count : %s .", len(partners))
-
+            # self._prepare_record(records=partners)
             self.with_delay_table_produce(
-                table_id=table_id, record_list=partners, method="product_partner_table"
+                table_id=table_id,
+                record_list=partners,
+                method="produce_table",
+                unique_field="id",
             )
 
             end_time = datetime.now()
@@ -296,20 +264,18 @@ class Teable(models.Model):
             raise ValidationError("Table Id not found!")
 
         if self.check_client:
-            write_date = "1970-03-19"
-            max_write_date = self.get_max_write_date(table_id)
-            if max_write_date:
-                _logger.info("Write date %s ", max_write_date)
-                write_date = max_write_date
+            write_date = self.get_max_write_date(table_id)
+            _logger.info("Write date %s ", write_date)
 
             self.env.cr.execute(StockSQL.stock_lot, (write_date,))
             stock_lots = self.env.cr.dictfetchall()
             _logger.info("Stock lot total count : %s .", len(stock_lots))
-
+            self.prepare_stock_lot_table(stock_lots=stock_lots)
             self.with_delay_table_produce(
                 table_id=table_id,
                 record_list=stock_lots,
-                method="produce_stock_lot_table",
+                method="produce_table",
+                unique_field="name",
             )
 
             end_time = datetime.now()

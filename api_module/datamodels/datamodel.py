@@ -1,7 +1,7 @@
 from dataclasses import asdict, dataclass, fields
 from datetime import date
 from enum import Enum
-from typing import List, Optional
+from typing import List, Dict, Optional
 
 
 class Method:
@@ -15,6 +15,12 @@ def default_ids(x):
     """Return Odoo default one2many command tuple."""
     return (0, 0, x.__dict__)
 
+
+@dataclass
+class TableJobParams:
+    table_id: str
+    method: str
+    records: List[Dict]
 
 @dataclass
 class BaseClass:
