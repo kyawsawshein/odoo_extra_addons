@@ -23,14 +23,17 @@ class Teable(models.Model):
         self,
         line,
         picking: PickingData,
+        qty: int = None,
+        lot_id: int = None,
     ) -> LineData:
         return LineData(
             product_id=line.get("product_id"),
             product_uom_id=line.get("uom_id"),
             location_id=picking.location_id,
             location_dest_id=picking.location_dest_id,
-            quantity=line.get("quantity"),
+            quantity=qty or line.get("quantity"),
             lot_name=line.get("lot_name"),
+            lot_id=lot_id,
         )
 
     def add_move(self, line, picking: PickingData) -> MoveData:
@@ -62,9 +65,12 @@ class Teable(models.Model):
         for line in lines:
             move = self.add_move(line, picking)
             move_lines = []
-            quantity = line.quantity
-            if line.lot_ids:
-                for lot in line.lot_ids:
+            quantity = line.get("quantity")
+            if line.get("lot_ids"):
+                lot_ids = list(
+                    map(int, line.get("lot_ids").replace(" ", "").split(","))
+                )
+                for lot in self.env["stock.lot"].browse(lot_ids):
                     qty = min(lot.product_qty, quantity)
                     move_lines.append(
                         default_ids(
@@ -143,9 +149,8 @@ class Teable(models.Model):
 
     def picking_delivery(self, values: List[Dict]):
         context = {"default_picking_type_id": 2}
-        picking = self.create_picking_lines_in(context, values)
+        picking = self.create_picking_lines_out(context, values)
 
-        # se face receptia
         if picking.move_ids:
             picking.action_assign()
             if picking.state == "assigned":
@@ -153,7 +158,7 @@ class Teable(models.Model):
 
         _logger.info("Done validaet picking for in.")
 
-    def do_picking(self, values: List[Dict]):
+    def picking_receiving(self, values: List[Dict]):
         context = {"default_picking_type_id": 1}
         picking = self.create_picking_lines_in(context, values)
 
@@ -204,13 +209,14 @@ class Teable(models.Model):
                     "uom_id": product_dict.get("uom_id")[0],
                     "quantity": field_data.get("Consume_Qty"),
                     "lot_name": field_data.get("Lot_No"),
+                    "lot_ids": field_data.get("Lot_ids"),
                     "price_unit": field_data.get("Cost"),
                 }
                 values.append(value)
                 record_ids.append(raw.get("id"))
             _logger.info("#### values data list : %s ", values)
 
-            self.do_picking(values=values)
+            self.picking_delivery(values=values)
             _logger.info("# Picking Data Out ")
 
     def sync_table_finished_goods(self):
@@ -291,9 +297,8 @@ class Teable(models.Model):
             sort_list = [{"fieldId": "ID", "order": "asc"}]
             mo_order = client.get_records(table_id, filter_list, sort_list)
 
-            # _logger.info("##### MOM Manufacturing Plan data %s ", mo_data)
-            values = []
             order_data = []
+            record_ids = []
             for order in mo_order:
                 raw_ids = order.get("fields", {}).get("Production_Raw_Material", [])
                 raw_lines = client._get_multiple_records(raw_table_id, raw_ids)
@@ -308,47 +313,26 @@ class Teable(models.Model):
                         "goods_lines": goods_lines,
                     }
                 )
-            _logger.info("Manufacturing Order data %s ", order_data)
-            # client.get_orders_with_lines_batch()
-            # product_dict = self.env["product.product"].search_read(
-            #     [
-            #         (
-            #             "default_code",
-            #             "=",
-            #             field_data.get("Product").get("title"),
-            #         )
-            #     ],
-            #     fields=["id", "default_code", "uom_id"],
-            # )[0]
+                _logger.info("Manufacturing Order data %s ", order_data)
+                record_ids.append(order.get("id"))
 
-            # _logger.info("### product dict %s ", product_dict)
+            for order in order_data:
+                self.sync_raw_material(raw_materials=order.get("raw_lines"))
+                self.sync_finished_goods(finished_goods=order.get("goods_lines"))
 
-            #     value = {
-            #         "product_id": product_dict.get("id"),
-            #         "uom_id": product_dict.get("uom_id")[0],
-            #         "quantity": field_data.get("Finished_Qty"),
-            #         "lot_name": field_data.get("Lot_No"),
-            #         "price_unit": field_data.get("Cost"),
-            #     }
+            for record in record_ids:
+                TEABLE.update_record_by_id(
+                    table_id=table_id,
+                    record_id=record,
+                    update_fields={"Sync": "Done"},
+                )
 
-            #     values.append(value)
-            #     record_ids.append(goods.get("id"))
-            # _logger.info("#### values data list : %s ", values)
+            _logger.info("### Done picking data.")
 
-            # self.do_picking(values=values)
-            # for record in record_ids:
-            #     TEABLE.update_record_by_id(
-            #         table_id=table_id,
-            #         record_id=record,
-            #         update_fields={"received": "Received"},
-            #     )
-
-            # _logger.info("# Picking Data In ")
-
-    def sync_raw_material(self, client, table_id: str, raw_materials: List[Dict]):
+    def sync_raw_material(self, raw_materials: List[Dict]):
         values = []
-        record_ids = []
         for raw in raw_materials:
+            _logger.info("##### Raw material %s", raw)
             field_data = raw.get("fields")
             product_dict = self.env["product.product"].search_read(
                 [
@@ -360,26 +344,20 @@ class Teable(models.Model):
                 ],
                 fields=["id", "default_code", "uom_id"],
             )[0]
-
-            _logger.info("### product dict %s ", product_dict)
-
             value = {
                 "product_id": product_dict.get("id"),
                 "uom_id": product_dict.get("uom_id")[0],
-                "quantity": field_data.get("Finished_Qty"),
+                "quantity": field_data.get("Consume_Qty"),
                 "lot_name": field_data.get("Lot_No"),
+                "lot_ids": field_data.get("Lot_ids"),
                 "price_unit": field_data.get("Cost"),
             }
             values.append(value)
-            record_ids.append(goods.get("id"))
         _logger.info("#### values data list : %s ", values)
-
-        self.do_picking(values=values)
+        self.picking_delivery(values=values)
         _logger.info("# Picking Data Out ")
 
-    def sync_finished_goods(
-        self, table_id: str, finished_goods: List[Dict], record_ids: List
-    ):
+    def sync_finished_goods(self, finished_goods: List[Dict]):
         values = []
         for goods in finished_goods:
             field_data = goods.get("fields")
@@ -393,9 +371,6 @@ class Teable(models.Model):
                 ],
                 fields=["id", "default_code", "uom_id"],
             )[0]
-
-            _logger.info("### product dict %s ", product_dict)
-
             value = {
                 "product_id": product_dict.get("id"),
                 "uom_id": product_dict.get("uom_id")[0],
@@ -404,8 +379,7 @@ class Teable(models.Model):
                 "price_unit": field_data.get("Cost"),
             }
             values.append(value)
-            record_ids.append(goods.get("id"))
         _logger.info("#### values data list : %s ", values)
 
-        self.do_picking(values=values)
+        self.picking_receiving(values=values)
         _logger.info("# Picking Data In ")

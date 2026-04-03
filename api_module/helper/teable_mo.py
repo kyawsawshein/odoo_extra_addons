@@ -28,9 +28,7 @@ class TeableManufactureAPI(TeableAPIClient):
 
         return {"order": order_data, "raw_lines": raw_lines, "goods_lines": goods_lines}
 
-    def _get_multiple_records(
-        self, table_id: str, record_ids: List[str]
-    ) -> List[Dict[str, Any]]:
+    def _get_multiple_records(self, table_id: str, record_ids: List[str]) -> List[Dict]:
         """
         Get multiple records by their IDs
         Args:
