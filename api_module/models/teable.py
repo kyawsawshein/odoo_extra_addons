@@ -134,6 +134,16 @@ class Teable(models.Model):
                     _logger.info("##### product table data %s", product[0])
                     lot[key] = {"id": product[0].get("id")}
 
+    def produce_stock_lot_table(
+        self, table_id: str, stock_lots: List[Dict], unique_field: str
+    ):
+        self.prepare_stock_lot_table(stock_lots=stock_lots)
+        self._update_table(
+            records=stock_lots,
+            table_id=table_id,
+            unique_field=unique_field,
+        )
+
     def produce_table(self, table_id: str, stock_lots: List[Dict], unique_field: str):
         self._update_table(
             records=stock_lots,
@@ -269,11 +279,10 @@ class Teable(models.Model):
             self.env.cr.execute(StockSQL.stock_lot, (write_date,))
             stock_lots = self.env.cr.dictfetchall()
             _logger.info("Stock lot total count : %s .", len(stock_lots))
-            self.prepare_stock_lot_table(stock_lots=stock_lots)
             self.with_delay_table_produce(
                 table_id=table_id,
                 record_list=stock_lots,
-                method="produce_table",
+                method="produce_stock_lot_table",
                 unique_field="id",
             )
 
