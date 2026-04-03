@@ -125,13 +125,14 @@ class Teable(models.Model):
         for lot in stock_lots:
             for key, value in lot.items():
                 if key == "product":
+                    _logger.info("## stock lot key %s, value %s", key, value)
                     product = TEABLE.find_product_by_code(
                         table_id=product_table_id,
                         field_name="default_code",
                         field_value=value,
                     )
-                    _logger.info("##### product table data %s", product)
-                    lot[key] = product
+                    _logger.info("##### product table data %s", product[0])
+                    lot[key] = {"id": product[0].get("id")}
 
     def produce_table(self, table_id: str, stock_lots: List[Dict], unique_field: str):
         self._update_table(
@@ -273,7 +274,7 @@ class Teable(models.Model):
                 table_id=table_id,
                 record_list=stock_lots,
                 method="produce_table",
-                unique_field="name",
+                unique_field="id",
             )
 
             end_time = datetime.now()

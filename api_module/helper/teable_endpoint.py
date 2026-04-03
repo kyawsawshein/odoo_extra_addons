@@ -62,7 +62,7 @@ class TeableAPIClient:
             # Fall back to REST API
             return []
 
-    def _make_request(self, method: str, endpoint: str, **kwargs) -> Optional[Dict]:
+    def _make_request(self, method: str, endpoint: str, **kwargs) -> Dict:
         """Make HTTP request to Teable API"""
         url = f"{self.base_url}{endpoint}"
         _logger.info("Teable URL : %s", url)
@@ -113,24 +113,23 @@ class TeableAPIClient:
         return payload
 
     def get_params(
-        self,
-        filter_value: List[Dict] = None,
-        sort_value: List[Dict] = None,
+        self, filter_value: List[Dict] = None, sort_value: List[Dict] = None, **params
     ):
-        params = {
+        query_params = {
             "fieldKeyType": "dbFieldName",
-            "filter": json.dumps(
+            "cellFormat": "json",
+            **params,
+        }
+        if filter_value:
+            query_params["filter"] = json.dumps(
                 {
                     "conjunction": "and",
                     "filterSet": filter_value,
                 }
-            ),
-            "orderBy": json.dumps(sort_value),
-            "cellFormat": "json",
-            "limit": 3,
-            "fields": "*",
-        }
-        return params
+            )
+        if sort_value:
+            query_params["orderBy"] = (json.dumps(sort_value),)
+        return query_params
 
     def create_record(
         self, table_id: str, fields: Dict, field_key_type: str = "dbFieldName"
@@ -170,10 +169,10 @@ class TeableAPIClient:
     def get_records(
         self,
         table_id: str,
-        filter_list: Optional[List] = None,
-        sort_list: Any = None,
+        filter_list: List[Dict] = None,
+        sort_list: List[Dict] = None,
         **params,
-    ) -> Optional[Dict]:
+    ) -> List[Dict]:
         """
         Get records from table
         Args:
@@ -185,20 +184,9 @@ class TeableAPIClient:
             Records data
         """
         endpoint = self.get_endpoint(table_id)
-        query_params = {
-            "fieldKeyType": "dbFieldName",
-            "cellFormat": "json",
-            **params,
-        }
-        if filter_list:
-            query_params["filter"] = json.dumps(
-                {
-                    "conjunction": "and",
-                    "filterSet": filter_list,
-                }
-            )
-        if sort_list:
-            query_params["orderBy"] = (json.dumps(sort_list),)
+        query_params = self.get_params(
+            filter_value=filter_list, sort_value=sort_list, **params
+        )
         _logger.info("#Get record params : %s", query_params)
         response = self._make_request(Method.GET, endpoint, params=query_params)
         _logger.info("#Get record response : %s ", response)
@@ -283,7 +271,7 @@ class TeableAPIClient:
 
     def find_product_by_code(
         self, table_id: str, field_name: str, field_value: str
-    ) -> Optional[Dict]:
+    ) -> List[Dict]:
         """Find Product record by product_code"""
         params = {
             "limit": 1,
@@ -292,11 +280,7 @@ class TeableAPIClient:
         filter_value = [
             {"fieldId": field_name, "operator": "is", "value": field_value},
         ]
-        data = self.get_records(
-            table_id=table_id, filter_list=filter_value, params=params
-        )
-        _logger.info("### Find product by code %s ", data)
-        return data
+        return self.get_records(table_id=table_id, filter_list=filter_value, **params)
 
     def upsert_record(
         self,
