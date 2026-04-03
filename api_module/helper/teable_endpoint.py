@@ -62,6 +62,28 @@ class TeableAPIClient:
             # Fall back to REST API
             return []
 
+    def _try_direct_sql(self, sql: str) -> Optional[Dict[str, Any]]:
+        """Try direct SQL endpoint"""
+        endpoints = ["/api/query/sql", "/api/db/execute", "/api/v1/query", "/query/sql"]
+
+        for endpoint in endpoints:
+            try:
+                url = f"{self.base_url}{endpoint}"
+                payload = {"sql": sql}
+                print(f"Trying SQL endpoint: {url} with payload: {payload}")
+                response = requests.post(
+                    url, headers=self.headers, json=payload, timeout=10
+                )
+                print(f"Response status: {response.status_code}, body: {response.text}")
+                if response.status_code == 200:
+                    return response.json()
+
+            except requests.exceptions.RequestException as err:
+                print(f"Error occurred while trying direct SQL: {err}")
+                continue
+
+        return None
+
     def _make_request(self, method: str, endpoint: str, **kwargs) -> Dict:
         """Make HTTP request to Teable API"""
         url = f"{self.base_url}{endpoint}"
@@ -479,3 +501,9 @@ client = TeableAPIClient(
     api_token="teable_acc65mmZVTtEo9VcPja_M/ACnbw8UHoLtGX6HW52TYUgUArZegSjHQ3MTvNecwE=",
     base_url="https://teable-team-zervi-u34072.vm.elestio.app/api",
 )
+
+product = client._try_direct_sql(
+    f'SELECT COUNT(*) as "count" FROM "bse0fQ6EXNGdiMURvQs"."Products"'
+)
+
+print("Product count: ", product)
