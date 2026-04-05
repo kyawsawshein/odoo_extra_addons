@@ -41,25 +41,27 @@ class TeableAPIClient:
         _logger.info("Teable AI Connected...")
 
     def execute_sql_query(self, sql: str) -> List[Dict[str, Any]]:
-        """
-        Execute SQL-like query on Teable
-
-        Note: Teable might have SQL endpoint or use different API
-        This is a placeholder - you need to check Teable's actual SQL API
-        """
+        """Execute SQL query on Teable"""
         try:
-            # This URL might be different - check Teable documentation
+            # ✅ Fix 1: /base/ not /bases/
+            url = f"{self.base_url}/base/{self.database}/sql-query"
 
-            url = f"https://teable-team-zervi-u34072.vm.elestio.app/v1/bases/{self.database}/query"
-            payload = {"query": sql, "parameters": {}}
+            # ✅ Fix 2: "sql" not "query"
+            payload = {"sql": sql}
+
+            print(f"Executing SQL query: {sql}")
+            print(f"URL: {url}")
 
             response = requests.post(url, headers=self.headers, json=payload)
             response.raise_for_status()
-            return response.json().get("records", [])
+            return response.json()
 
         except Exception as e:
             _logger.info(f"SQL query failed: {e}")
-            # Fall back to REST API
+            print(f"SQL query failed: {e}")
+            # Print response body for debugging
+            if hasattr(e, 'response') and e.response is not None:
+                print(f"Response body: {e.response.text}")
             return []
 
     def _try_direct_sql(self, sql: str) -> Optional[Dict[str, Any]]:
@@ -68,7 +70,8 @@ class TeableAPIClient:
 
         for endpoint in endpoints:
             try:
-                url = f"{self.base_url}{endpoint}"
+                # url = f"{self.base_url}{endpoint}"
+                url = f"https://app.teable.ai/api/bases/{self.database}/sql-query"
                 payload = {"sql": sql}
                 print(f"Trying SQL endpoint: {url} with payload: {payload}")
                 response = requests.post(
@@ -295,13 +298,14 @@ class TeableAPIClient:
         self, table_id: str, field_name: str, field_value: str
     ) -> List[Dict]:
         """Find Product record by product_code"""
-        params = {
-            "limit": 1,
-            "fields": "id,default_code",
-        }
         filter_value = [
             {"fieldId": field_name, "operator": "is", "value": field_value},
         ]
+        params = {
+            "take": 1,
+            "fields": "id,default_code",
+        }
+
         return self.get_records(table_id=table_id, filter_list=filter_value, **params)
 
     def upsert_record(
@@ -496,14 +500,32 @@ class TeableAPIClient:
         return complete_schema
 
 
-client = TeableAPIClient(
-    database="bse0fQ6EXNGdiMURvQs",
-    api_token="teable_acc65mmZVTtEo9VcPja_M/ACnbw8UHoLtGX6HW52TYUgUArZegSjHQ3MTvNecwE=",
-    base_url="https://teable-team-zervi-u34072.vm.elestio.app/api",
+TEABLE_API_URL = "https://app.teable.ai/api"
+BASE_ID = "bsez0Y8svP1AV6SJyPa"
+TEABLE_APP_TOKEN = (
+    "teable_acc8IjiWjSVYXOWHVns_6AnnmMilIL8PpVWrxUtso4heAtwZBrFma6TAZClEYHY="
 )
 
-product = client._try_direct_sql(
-    f'SELECT COUNT(*) as "count" FROM "bse0fQ6EXNGdiMURvQs"."Products"'
+
+# client = TeableAPIClient(
+#     database="bse0fQ6EXNGdiMURvQs",
+#     api_token="teable_acc65mmZVTtEo9VcPja_M/ACnbw8UHoLtGX6HW52TYUgUArZegSjHQ3MTvNecwE=",
+#     base_url="https://teable-team-zervi-u34072.vm.elestio.app/api",
+# )
+
+
+client = TeableAPIClient(
+    database=BASE_ID,
+    api_token=TEABLE_APP_TOKEN,
+    base_url=TEABLE_API_URL,
+)
+
+# product = client._try_direct_sql(
+#     f'SELECT COUNT(*) as "count" FROM "${BASE_ID}"."Products"'
+# )
+
+product = client.execute_sql_query(
+    f'SELECT COUNT(*) as "count" FROM "${BASE_ID}"."Products"'
 )
 
 print("Product count: ", product)
