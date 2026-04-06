@@ -47,7 +47,7 @@ class TeableAPIClient:
             url = f"{self.base_url}/base/{self.database}/sql-query"
 
             # ✅ Fix 2: "sql" not "query"
-            payload = {"sql": sql}
+            payload = {"fieldKeyType": "dbFieldName", "sql": sql}
 
             print(f"Executing SQL query: {sql}")
             print(f"URL: {url}")
@@ -60,7 +60,7 @@ class TeableAPIClient:
             _logger.info(f"SQL query failed: {e}")
             print(f"SQL query failed: {e}")
             # Print response body for debugging
-            if hasattr(e, 'response') and e.response is not None:
+            if hasattr(e, "response") and e.response is not None:
                 print(f"Response body: {e.response.text}")
             return []
 

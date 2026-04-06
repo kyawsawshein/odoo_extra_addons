@@ -17,58 +17,56 @@ class TeableManufactureAPI(TeableAPIClient):
     Specifically designed for Zervi Azia's Odoo migration project
     """
 
-    def get_order_with_lines_via_link(
-        self, raw_table_id: str, goods_table_id: str, order_data: Dict
-    ) -> Dict[str, Any]:
-        raw_ids = order_data.get("fields", {}).get("Production_Raw_Material", [])
-        raw_lines = self._get_multiple_records(raw_table_id, raw_ids)
-
-        goods_ids = order_data.get("fields", {}).get("Finished_Goods", [])
-        goods_lines = self._get_multiple_records(goods_table_id, goods_ids)
-
-        return {"order": order_data, "raw_lines": raw_lines, "goods_lines": goods_lines}
-
-    def _get_multiple_records(self, table_id: str, record_ids: List[str]) -> List[Dict]:
+    def get_manufacture_orders_sql(self) -> str:
+        return f"""
+            SELECT "__id","Product", "Quantity", "Production_Raw_Material", "Finished_Goods"
+            FROM "{self.database}"."MO"
+            WHERE "Status" = 'Done' AND "Name" = 'MO-3'
         """
-        Get multiple records by their IDs
-        Args:
-            table_id: Table ID
-            record_ids: List of record IDs
-        Returns:
-            List of record dictionaries
+
+    def get_mo_raw_material_lines_sql(self) -> str:
+        return f"""
+            SELECT p."id" as product_id, p."default_code", raw."Consume_Qty", raw."Lot_ids", uom."uom_id", raw."Total_Cost"
+            FROM "{self.database}"."MO_Raw_Material" raw
+                LEFT JOIN "{self.database}"."Products" p ON (raw."Product"->>'id') = p."__id"
+                LEFT JOIN "{self.database}"."Units_of_Measure" uom ON (p."uom_id"->>'id') = uom."__id"
+            WHERE raw."__id" IN ($raw_ids)
         """
-        try:
-            # Teable might support batch GET or we need to fetch individually
-            all_records = []
-            params = self.get_params()
-            for record in record_ids:
-                endpoint = self.get_endpoint(table_id, record.get("id"))
-                response = self._make_request(
-                    method=Method.GET, endpoint=endpoint, params=params
+
+    def get_mo_finished_goods_lines_sql(self) -> str:
+        return f"""
+            SELECT p."id" as product_id,p."default_code",fgo."Finished_Qty",fgo."Cost", uom."uom_id", fgo."Lot_No"
+            FROM "{self.database}"."MO_Finished_Goods" fgo
+                LEFT JOIN "{self.database}"."Products" p ON (fgo."Product"->>'id') = p."__id"
+                LEFT JOIN "{self.database}"."Units_of_Measure" uom ON (p."uom_id"->>'id') = uom."__id"
+            WHERE fgo."__id" IN ($goods_ids)
+        """
+
+    def get_manufacture_orders(self) -> List:
+        manufacture_orders = []
+        mo_orders = self.execute_sql_query(sql=self.get_manufacture_orders_sql())
+        for order in mo_orders.get("rows", []):
+            raw_line_ids = [l["id"] for l in order.get("Production_Raw_Material", [])]
+            goods_line_ids = [l["id"] for l in order.get("Finished_Goods", [])]
+            if not raw_line_ids:
+                manufacture_orders.append({"order": order, "raw_lines": []})
+            raw_lines = self.execute_sql_query(
+                sql=self.get_mo_raw_material_lines_sql().replace(
+                    "$raw_ids", ",".join([f"'{i}'" for i in raw_line_ids])
                 )
-                all_records.append(response)
-            return all_records
-        except Exception as e:
-            print(f"Error getting multiple records: {e}")
-            return []
-
-    # ============================================
-    # METHOD 3: Batch Query with Expanded Fields
-    # ============================================
-    def get_orders_with_lines_batch(
-        self, table_id: str, line_table_id: str, order_ids: List[str]
-    ) -> List[Dict[str, Any]]:
-        try:
-            all_results = []
-            for order_id in order_ids:
-                result = self.get_order_with_lines_via_link(
-                    table_id, line_table_id, order_id
+            )
+            if not goods_line_ids:
+                manufacture_orders.append({"order": order, "goods_lines": []})
+            goods_lines = self.execute_sql_query(
+                sql=self.get_mo_finished_goods_lines_sql().replace(
+                    "$goods_ids", ",".join([f"'{i}'" for i in goods_line_ids])
                 )
-                if "error" not in result:
-                    all_results.append(result)
-
-            return all_results
-
-        except Exception as e:
-            print(f"Error in batch query: {e}")
-            return []
+            )
+            manufacture_orders.append(
+                {
+                    "order": order.get("row", {}),
+                    "raw_lines": raw_lines.get("rows", []),
+                    "goods_lines": goods_lines.get("rows", []),
+                }
+            )
+        return manufacture_orders

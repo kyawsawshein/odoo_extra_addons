@@ -245,7 +245,6 @@ class Teable(models.Model):
             self.env.cr.execute(PartnerSQL.partner, (write_date,))
             partners = self.env.cr.dictfetchall()
             _logger.info("Partners total count : %s .", len(partners))
-            # self._prepare_record(records=partners)
             self.with_delay_table_produce(
                 table_id=table_id,
                 record_list=partners,

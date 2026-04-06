@@ -170,118 +170,10 @@ class Teable(models.Model):
 
         _logger.info("Done validaet picking for in.")
 
-    def sync_table_raw_material(self):
-        table = "mo_raw"
-        table_dict = self.get_table_id()
-        table_id = table_dict.get(table)
-
-        api = self.env["api.config"].search([("name", "=", "Teable AI")])
-        TEABLE = TeableManufactureAPI(database=api.database, api_token=api.token_key)
-
-        if not table_id:
-            raise ValidationError("Table Id not found!")
-
-        if TEABLE:
-            filter_list = [{"fieldId": "Status", "operator": "is", "value": "Done"}]
-            sort_list = [{"fieldId": "ID", "order": "asc"}]
-            raw_materials = TEABLE.get_records(table_id, filter_list, sort_list)
-
-            values = []
-            record_ids = []
-            for raw in raw_materials:
-                _logger.info("##### Raw material %s", raw)
-                field_data = raw.get("fields")
-                product_dict = self.env["product.product"].search_read(
-                    [
-                        (
-                            "default_code",
-                            "=",
-                            field_data.get("Product").get("title"),
-                        )
-                    ],
-                    fields=["id", "default_code", "uom_id"],
-                )[0]
-
-                _logger.info("### product dict %s ", product_dict)
-
-                value = {
-                    "product_id": product_dict.get("id"),
-                    "uom_id": product_dict.get("uom_id")[0],
-                    "quantity": field_data.get("Consume_Qty"),
-                    "lot_name": field_data.get("Lot_No"),
-                    "lot_ids": field_data.get("Lot_ids"),
-                    "price_unit": field_data.get("Cost"),
-                }
-                values.append(value)
-                record_ids.append(raw.get("id"))
-            _logger.info("#### values data list : %s ", values)
-
-            self.picking_delivery(values=values)
-            _logger.info("# Picking Data Out ")
-
-    def sync_table_finished_goods(self):
-        table = "mo_finished_goods"
-        table_dict = self.get_table_id()
-        table_id = table_dict.get(table)
-
-        api = self.env["api.config"].search([("name", "=", "Teable AI")])
-        TEABLE = TeableManufactureAPI(database=api.database, api_token=api.token_key)
-
-        if not table_id:
-            raise ValidationError("Table Id not found!")
-
-        if TEABLE:
-            filter_list = [
-                {"fieldId": "Status", "operator": "is", "value": "Done"},
-                {"fieldId": "Status", "operator": "isNot", "value": "Received"},
-            ]
-            sort_list = [{"fieldId": "ID", "order": "asc"}]
-            finished_goods = TEABLE.get_records(table_id, filter_list, sort_list)
-
-            values = []
-            record_ids = []
-            for goods in finished_goods:
-                field_data = goods.get("fields")
-                product_dict = self.env["product.product"].search_read(
-                    [
-                        (
-                            "default_code",
-                            "=",
-                            field_data.get("Product").get("title"),
-                        )
-                    ],
-                    fields=["id", "default_code", "uom_id"],
-                )[0]
-
-                _logger.info("### product dict %s ", product_dict)
-
-                value = {
-                    "product_id": product_dict.get("id"),
-                    "uom_id": product_dict.get("uom_id")[0],
-                    "quantity": field_data.get("Finished_Qty"),
-                    "lot_name": field_data.get("Lot_No"),
-                    "price_unit": field_data.get("Cost"),
-                }
-                values.append(value)
-                record_ids.append(goods.get("id"))
-            _logger.info("#### values data list : %s ", values)
-
-            self.do_picking(values=values)
-            for record in record_ids:
-                TEABLE.update_record_by_id(
-                    table_id=table_id,
-                    record_id=record,
-                    update_fields={"received": "Received"},
-                )
-
-            _logger.info("# Picking Data In ")
-
     def sync_table_mo(self):
         table = "mo"
         table_dict = self.get_table_id()
         table_id = table_dict.get(table)
-        raw_table_id = table_dict.get("mo_raw")
-        goods_table_id = table_dict.get("mo_goods")
 
         api = self.env["api.config"].search([("name", "=", "Teable AI")])
         client = TeableManufactureAPI(database=api.database, api_token=api.token_key)
@@ -290,38 +182,16 @@ class Teable(models.Model):
             raise ValidationError("Table Id not found!")
 
         if client:
-            filter_list = [
-                {"fieldId": "Status", "operator": "is", "value": "Done"},
-                {"fieldId": "Sync", "operator": "isNot", "value": "Done"},
-            ]
-            sort_list = [{"fieldId": "ID", "order": "asc"}]
-            mo_order = client.get_records(table_id, filter_list, sort_list)
-
-            order_data = []
+            mo_order = client.get_manufacture_orders()
             record_ids = []
             for order in mo_order:
-                raw_ids = order.get("fields", {}).get("Production_Raw_Material", [])
-                raw_lines = client._get_multiple_records(raw_table_id, raw_ids)
-
-                goods_ids = order.get("fields", {}).get("Finished_Goods", [])
-                goods_lines = client._get_multiple_records(goods_table_id, goods_ids)
-
-                order_data.append(
-                    {
-                        "order": order,
-                        "raw_lines": raw_lines,
-                        "goods_lines": goods_lines,
-                    }
-                )
-                _logger.info("Manufacturing Order data %s ", order_data)
+                _logger.info("### MO order data %s", order)
+                self.sync_raw_material(raw_materials=order.get("raw_lines", []))
+                self.sync_finished_goods(finished_goods=order.get("goods_lines", []))
                 record_ids.append(order.get("id"))
 
-            for order in order_data:
-                self.sync_raw_material(raw_materials=order.get("raw_lines"))
-                self.sync_finished_goods(finished_goods=order.get("goods_lines"))
-
             for record in record_ids:
-                TEABLE.update_record_by_id(
+                client.update_record_by_id(
                     table_id=table_id,
                     record_id=record,
                     update_fields={"Sync": "Done"},
@@ -333,24 +203,12 @@ class Teable(models.Model):
         values = []
         for raw in raw_materials:
             _logger.info("##### Raw material %s", raw)
-            field_data = raw.get("fields")
-            product_dict = self.env["product.product"].search_read(
-                [
-                    (
-                        "default_code",
-                        "=",
-                        field_data.get("Product").get("title"),
-                    )
-                ],
-                fields=["id", "default_code", "uom_id"],
-            )[0]
             value = {
-                "product_id": product_dict.get("id"),
-                "uom_id": product_dict.get("uom_id")[0],
-                "quantity": field_data.get("Consume_Qty"),
-                "lot_name": field_data.get("Lot_No"),
-                "lot_ids": field_data.get("Lot_ids"),
-                "price_unit": field_data.get("Cost"),
+                "product_id": raw.get("product_id"),
+                "uom_id": raw.get("uom_id"),
+                "quantity": raw.get("Consume_Qty"),
+                "lot_ids": raw.get("Lot_ids"),
+                "price_unit": raw.get("Total_Cost"),
             }
             values.append(value)
         _logger.info("#### values data list : %s ", values)
@@ -360,23 +218,12 @@ class Teable(models.Model):
     def sync_finished_goods(self, finished_goods: List[Dict]):
         values = []
         for goods in finished_goods:
-            field_data = goods.get("fields")
-            product_dict = self.env["product.product"].search_read(
-                [
-                    (
-                        "default_code",
-                        "=",
-                        field_data.get("Product").get("title"),
-                    )
-                ],
-                fields=["id", "default_code", "uom_id"],
-            )[0]
             value = {
-                "product_id": product_dict.get("id"),
-                "uom_id": product_dict.get("uom_id")[0],
-                "quantity": field_data.get("Finished_Qty"),
-                "lot_name": field_data.get("Lot_No"),
-                "price_unit": field_data.get("Cost"),
+                "product_id": goods.get("product_id"),
+                "uom_id": goods.get("uom_id"),
+                "quantity": goods.get("Finished_Qty"),
+                "lot_name": goods.get("Lot_No"),
+                "price_unit": goods.get("Cost"),
             }
             values.append(value)
         _logger.info("#### values data list : %s ", values)
