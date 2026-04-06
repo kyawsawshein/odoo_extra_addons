@@ -260,32 +260,3 @@ class ProductProduct(models.Model):
         _logger.info("Product total stock count : %s .", len(stocks))
 
         return stocks
-
-        # for stock in stocks:
-        #     for key, value in stock.items():
-        #         if isinstance(value, tuple):
-        #             product[key] = value[1]
-        #         if isinstance(value, bool):
-        #             product[key] = None
-        #         if key == "uom_id":
-        #             product[key] = uom_dict.get(value[1])
-        #         if key == "write_date":
-        #             product[key] = value.timestamp()
-        #     _logger.info("Product %s", product)
-        #     try:
-        #         client.upsert_record(
-        #             table="product",
-        #             unique_field="id",
-        #             unique_value=product.get("id"),
-        #             update_fields=product,
-        #         )
-
-        #     except Exception as err:
-        #         _logger.error("Error ", str(err))
-
-        # end_time = datetime.now()
-        # _logger.info(
-        #     "Done Cron toaken time : %s for record count %s ",
-        #     end_time - start_time,
-        #     len(stocks),
-        # )

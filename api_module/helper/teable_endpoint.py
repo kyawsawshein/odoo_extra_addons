@@ -260,6 +260,18 @@ class TeableAPIClient:
         # PATCH method for partial update
         return self._make_request(Method.PATCH, endpoint=endpoint, json=payload)
 
+    def get_record_by_id(self, table_id: str, record_ids: str) -> Optional[Dict]:
+        responses = self.execute_sql_query(sql=f'SELECT * FROM "{table_id}" WHERE "__id" IN ($record_ids)')
+        if responses and responses.get("rows"):
+            return responses["rows"]
+        return None
+
+    def get_record_by_unique_fields(self, table_id: str, unique_field: str, record_ids: str) -> Optional[Dict]:
+        response = self.execute_sql_query(sql=f'SELECT * FROM "{table_id}" WHERE "{unique_field}" IN ($record_ids)')
+        if response and response.get("rows"):
+            return response["rows"]
+        return None
+
     def find_record_by_field(
         self, table_id: str, field_name: str, field_value: Any
     ) -> Optional[Dict[str, Any]]:
@@ -368,6 +380,13 @@ class TeableAPIClient:
     def get_table_schema(self, table_id: str) -> Optional[Dict]:
         """Get table schema/fields"""
         return self._make_request(Method.GET, f"/table/{table_id}/field")
+
+    def get_max_write_record(self, table_id: str, date_field: str = "write_date") -> Optional[Dict[str, Any]]:
+        """Get the record with the maximum write_date from a table"""
+        response = self.execute_sql_query(
+            sql=f"SELECT * FROM {table_id} ORDER BY {date_field} DESC LIMIT 1"
+        )
+        return response.get("rows", [None])[0] if response else None
 
     def get_max_write_date_record(
         self, table_id: str, date_field: str = "write_date"
@@ -498,34 +517,3 @@ class TeableAPIClient:
         _logger.info(f"Total tables downloaded: {len(complete_schema['tables'])}")
 
         return complete_schema
-
-
-TEABLE_API_URL = "https://app.teable.ai/api"
-BASE_ID = "bsez0Y8svP1AV6SJyPa"
-TEABLE_APP_TOKEN = (
-    "teable_acc8IjiWjSVYXOWHVns_6AnnmMilIL8PpVWrxUtso4heAtwZBrFma6TAZClEYHY="
-)
-
-
-# client = TeableAPIClient(
-#     database="bse0fQ6EXNGdiMURvQs",
-#     api_token="teable_acc65mmZVTtEo9VcPja_M/ACnbw8UHoLtGX6HW52TYUgUArZegSjHQ3MTvNecwE=",
-#     base_url="https://teable-team-zervi-u34072.vm.elestio.app/api",
-# )
-
-
-client = TeableAPIClient(
-    database=BASE_ID,
-    api_token=TEABLE_APP_TOKEN,
-    base_url=TEABLE_API_URL,
-)
-
-# product = client._try_direct_sql(
-#     f'SELECT COUNT(*) as "count" FROM "${BASE_ID}"."Products"'
-# )
-
-product = client.execute_sql_query(
-    f'SELECT COUNT(*) as "count" FROM "${BASE_ID}"."Products"'
-)
-
-print("Product count: ", product)

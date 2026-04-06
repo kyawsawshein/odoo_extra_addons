@@ -26,12 +26,11 @@ class TeableProductAPI(TeableAPIClient):
     Specifically designed for Zervi Azia's Odoo migration project
     """
 
-    def get_sale_order_sql(self) -> str:
+    def get_products_sql(self) -> str:
         return f"""
-            SELECT so."__id","Customer", p."partner_id", "Status","Order_Date","Delivery_Date","PO_No","Source_Location","Company","Sale_Team","Name","Sales_Order_Lines"
-            FROM "{self.database}"."Sales_Orders" so
-                LEFT JOIN "{self.database}"."Partners" p ON  (so."Customer"->>'id') = p."__id"
-            WHERE "Status" = 'Confirmed' AND "Name" = 'SO-16'
+            SELECT *
+            FROM "{self.database}"."Products"
+            WHERE "default_code" IN ($codes)
         """
 
     def get_sale_order_lines_sql(self) -> str:
@@ -43,17 +42,10 @@ class TeableProductAPI(TeableAPIClient):
             WHERE sol."__id" IN ($line_ids)
         """
 
-    def get_sale_order(self) -> List:
-        sale_order = []
-        orders = self.execute_sql_query(sql=self.get_sale_order_sql())
-        for order in orders.get("rows", []):
-            line_ids = [l["id"] for l in order.get("Sales_Order_Lines", [])]
-            if not line_ids:
-                sale_order.append({"order": order, "lines": []})
-            lines = self.execute_sql_query(
-                sql=self.get_sale_order_lines_sql().replace(
-                    "$line_ids", ",".join([f"'{i}'" for i in line_ids])
-                )
-            )
-            sale_order.append({"order": order, "lines": lines})
-        return sale_order
+    def get_products(self, codes: List[str]) -> List[Dict]:
+        product_dict = {}
+        sql = self.get_products_sql().replace("$codes", ",".join([f"'{code}'" for code in codes]))
+        products = self.execute_sql_query(sql=sql)
+        for product in products.get("rows", []):
+            product_dict[product["default_code"]] = product
+        return list(product_dict.values())

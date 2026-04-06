@@ -18,54 +18,20 @@ from ...data_commom.datamodels.datamodel import (
 from ..datamodels.datamodel import TeablePartner, TeableProduct, TeableStockLot
 from ..helper.teable_endpoint import TeableAPIClient
 from ..query.query import PartnerSQL, ProductSQL, StockSQL
+from ..helper.teable_endpoint import get_teable_client
+
 
 _logger = logging.getLogger(__name__)
 
 LIMIT = 20
 
 
-def get_teable_client(env):
-    """Utility function to get the Teable client from any environment."""
-    return env['teable.ai']._get_teable_client()
-
-
 class Teable(models.Model):
-    _name = "teable.ai"
-    _description = "Teable AI"
+    _inherit = "teable.ai"
 
-    name = fields.Char(string="Table Name", required=True)
-    table = fields.Char(string="Table ID", required=True)
-
-    @api.model
-    def _get_teable_client(self):
-        """Get or create the Teable API client for the current environment."""
-        if not hasattr(self.env, '_teable_client'):
-            try:
-                api = self.env["api.config"].search([("name", "=", "Teable AI")])
-                self.env._teable_client = TeableAPIClient(database=api.database, api_token=api.token_key)
-                _logger.info("Created Teable.ai connection.")
-            except Exception as err:
-                _logger.error("Failed to connect to Teable.ai: %s", str(err))
-                raise UserError(f"Failed to connect to Teable.ai: {str(err)}")
-        return self.env._teable_client
-
-    def check_client(self) -> bool:
-        try:
-            self._get_teable_client()
-            return True
-        except Exception as err:
-            _logger.error("Cannot connect to Teable.ai: %s", str(err))
-            return False
-
-    def get_table_id(self) -> Dict:
-        table_dict = {}
-        for table in self.search_read([], fields=["name", "table"]):
-            table_dict[table.get("name")] = table.get("table")
-
-        return table_dict
 
     def teable_uom(self, table_dict: Dict) -> Dict:
-        uom_teable = self._get_teable_client().get_records(table_id=table_dict.get("uom"))
+        uom_teable =  get_teable_client().get_records(table_id=table_dict.get("uom"))
         uom_dict = {}
         for uom in uom_teable:
             uom_dict[uom.get("fields").get("UOM")] = {"id": uom.get("id")}
@@ -73,7 +39,7 @@ class Teable(models.Model):
 
     def get_max_write_date(self, table_id: str) -> Optional[str]:
         write_date = "1970-01-19"
-        last_write_date = self._get_teable_client().get_max_write_date_record(table_id)
+        last_write_date = self._get_teable_client().get_max_write_record(table_id)
         _logger.info("##### last write date record %s ", last_write_date)
         if last_write_date:
             timestamp = last_write_date.get("fields").get("write_date")
@@ -96,20 +62,6 @@ class Teable(models.Model):
                     rec[key] = value.timestamp()
 
         return records
-
-    def _update_table(
-        self,
-        records: List[Dict],
-        table_id: str,
-        unique_field: str,
-    ):
-        for rec in records:
-            self._get_teable_client().upsert_record(
-                table_id=table_id,
-                unique_field=unique_field,
-                unique_value=rec.get(unique_field),
-                update_fields=rec,
-            )
 
     def _prepare_product_table(self, records: List[Dict]):
         table_dict = self.get_table_id()
@@ -156,36 +108,6 @@ class Teable(models.Model):
             unique_field=unique_field,
         )
 
-    @staticmethod
-    def split_by_batch(lst, batch_size):
-        for i in range(0, len(lst), batch_size):
-            yield lst[i : i + batch_size]
-
-    def with_delay_table_produce(
-        self,
-        table_id: str,
-        record_list: List[Dict],
-        method: str,
-        unique_field: str,
-        channel: str = "root",
-    ):
-
-        if record_list:
-            limit = (
-                int(self.env["ir.config_parameter"].sudo().get_param("sync.batch"))
-                or LIMIT
-            )
-            for records in self.split_by_batch(record_list, limit):
-                self.with_delay(
-                    channel=channel,
-                    description=f"Teable AI Sync Table : {table_id}, methbod {method} : {len(records)}",
-                ).produce(
-                    table_id=table_id,
-                    records=records,
-                    method=method,
-                    unique_field=unique_field,
-                )
-
     def produce(
         self, table_id: str, records: List[Dict], method: str, unique_field: str
     ):
@@ -208,10 +130,8 @@ class Teable(models.Model):
             raise ValidationError("Table Id not found!")
 
         if self.check_client:
-            domain = [("default_code", "!=", False)]
             write_date = self.get_max_write_date(table_id)
             _logger.info("Write date %s ", write_date)
-            domain.append(("write_date", ">", write_date))
 
             self.env.cr.execute(ProductSQL.producdt, (write_date,))
             products = self.env.cr.dictfetchall()

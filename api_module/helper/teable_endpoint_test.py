@@ -50,11 +50,9 @@ class TeableAPIClient:
             return []
 
 
-TEABLE_API_URL = "https://teable-team-zervi-u34072.vm.elestio.app/api"
-BASE_ID = "bsevp7nvwmXvxF5HKx4"
-TEABLE_APP_TOKEN = (
-    "teable_acc65mmZVTtEo9VcPja_M/ACnbw8UHoLtGX6HW52TYUgUArZegSjHQ3MTvNecwE="
-)
+TEABLE_API_URL = "https://app.teable.ai/api"
+BASE_ID = "bsez0Y8svP1AV6SJyPa"
+TEABLE_APP_TOKEN = "teable_acc8IjiWjSVYXOWHVns_6AnnmMilIL8PpVWrxUtso4heAtwZBrFma6TAZClEYHY="
 
 
 client = TeableAPIClient(
