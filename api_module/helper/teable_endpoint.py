@@ -1,5 +1,6 @@
 import json
 import logging
+from dataclasses import field, fields
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -49,8 +50,8 @@ class TeableAPIClient:
             # ✅ Fix 2: "sql" not "query"
             payload = {"fieldKeyType": "dbFieldName", "sql": sql}
 
-            print(f"Executing SQL query: {sql}")
-            print(f"URL: {url}")
+            _logger.info(f"Executing SQL query: {sql}")
+            _logger.info(f"URL: {url}")
 
             response = requests.post(url, headers=self.headers, json=payload)
             response.raise_for_status()
@@ -58,10 +59,10 @@ class TeableAPIClient:
 
         except Exception as e:
             _logger.info(f"SQL query failed: {e}")
-            print(f"SQL query failed: {e}")
+            _logger.error(f"SQL query failed: {e}")
             # Print response body for debugging
             if hasattr(e, "response") and e.response is not None:
-                print(f"Response body: {e.response.text}")
+                _logger.error(f"Response body: {e.response.text}")
             return []
 
     def _try_direct_sql(self, sql: str) -> Optional[Dict[str, Any]]:
@@ -136,6 +137,9 @@ class TeableAPIClient:
             "records": [{"fields": record} for record in records],
         }
         return payload
+
+    def get_sql_payload(self, sql: str) -> Dict[str, Any]:
+        return {"fieldKeyType": "dbFieldName", "sql": sql}
 
     def get_params(
         self, filter_value: List[Dict] = None, sort_value: List[Dict] = None, **params
@@ -261,16 +265,38 @@ class TeableAPIClient:
         return self._make_request(Method.PATCH, endpoint=endpoint, json=payload)
 
     def get_record_by_id(self, table_id: str, record_ids: str) -> Optional[Dict]:
-        responses = self.execute_sql_query(sql=f'SELECT * FROM "{table_id}" WHERE "__id" IN ($record_ids)')
+        responses = self.execute_sql_query(
+            sql=f'SELECT * FROM "{table_id}" WHERE "__id" IN ($record_ids)'
+        )
         if responses and responses.get("rows"):
             return responses["rows"]
         return None
 
-    def get_record_by_unique_fields(self, table_id: str, unique_field: str, record_ids: str) -> Optional[Dict]:
-        response = self.execute_sql_query(sql=f'SELECT * FROM "{table_id}" WHERE "{unique_field}" IN ($record_ids)')
-        if response and response.get("rows"):
-            return response["rows"]
-        return None
+    def get_unique_fields_sql(self, table_id: str, field: str) -> str:
+        return f"""
+            SELECT "__id" AS "id","{field}"
+            FROM "{self.database}"."{table_id}"
+            WHERE "{field}" IN ($values)
+        """
+
+    def get_record_by_unique_fields(
+        self, table_id: str, unique_field: str, values: str
+    ) -> Dict:
+        _logger.info(
+            "Get record by unique fields with table_id %s, unique_field %s, values %s",
+            table_id,
+            unique_field,
+            values,
+        )
+        fields_dict = {}
+        response = self.execute_sql_query(
+            sql=self.get_unique_fields_sql(table_id, unique_field).replace(
+                "$values", values
+            )
+        )
+        for rep in response.get("rows", []):
+            fields_dict[rep.get(unique_field)] = rep
+        return fields_dict
 
     def find_record_by_field(
         self, table_id: str, field_name: str, field_value: Any
@@ -323,10 +349,51 @@ class TeableAPIClient:
     def upsert_record(
         self,
         table_id: str,
+        table_name: str,
         unique_field: str,
         unique_value: Any,
-        update_fields: Dict[str, Any],
+        update_records: List[Dict],
     ) -> Dict:
+        """
+        Update if exists, insert if not exists (UPSERT)
+        This is useful for Odoo migration where you want to sync data
+        Args:
+            table: The ID of the table
+            unique_field: Field that should be unique (e.g., 'product_code')
+            unique_value: Value of the unique field
+            update_records: List of dictionaries containing field names and values
+
+        Returns:
+            Created or updated record
+        """
+        # Check if record exists
+        existing_record = self.get_record_by_unique_fields(
+            table_name, unique_field, unique_value
+        )
+
+        for record in update_records:
+            exist = existing_record.get(record.get(unique_field))
+            if exist:
+                # Update existing record
+                _logger.info(
+                    f"Updating existing record with {unique_field} = {exist.get(unique_field)}"
+                )
+                return self.update_record_by_id(table_id, exist["id"], record)
+            else:
+                # Create new record
+                _logger.info(
+                    f"Creating new record with {unique_field} = {record.get(unique_field)}"
+                )
+                return self.create_record(table_id, record)
+
+    def upsert_product_record(
+        self,
+        table_id: str,
+        table_name: str,
+        unique_field: str,
+        unique_value: Any,
+        update_records: List[Dict],
+    ) -> Optional[Dict]:
         """
         Update if exists, insert if not exists (UPSERT)
         This is useful for Odoo migration where you want to sync data
@@ -339,23 +406,30 @@ class TeableAPIClient:
         Returns:
             Created or updated record
         """
-        # Check if record exists
-        existing_record = self.find_record_by_field(
-            table_id, unique_field, unique_value
+        _logger.info(
+            "Upsert product record with unique field %s and value %s records %s",
+            unique_field,
+            unique_value,
+            update_records,
+        )
+        existing_record = self.get_record_by_unique_fields(
+            table_name, unique_field, unique_value
         )
 
-        if existing_record:
-            # Update existing record
-            _logger.info(
-                f"Updating existing record with {unique_field} = {unique_value}"
-            )
-            return self.update_record_by_id(
-                table_id, existing_record["id"], update_fields
-            )
-        else:
-            # Create new record
-            _logger.info(f"Creating new record with {unique_field} = {unique_value}")
-            return self.create_record(table_id, update_fields)
+        for record in update_records:
+            exist = existing_record.get(record.get(unique_field))
+            if exist:
+                # Update existing record
+                _logger.info(
+                    f"Updating existing record with {unique_field} = {exist.get(unique_field)}"
+                )
+                return self.update_record_by_id(table_id, exist["id"], record)
+            else:
+                # Create new record
+                _logger.info(
+                    f"Creating new record with {unique_field} = {record.get(unique_field)}"
+                )
+                return self.create_record(table_id, record)
 
     def delete_record(self, table_id: str, record_id: str) -> bool:
         """
@@ -381,7 +455,9 @@ class TeableAPIClient:
         """Get table schema/fields"""
         return self._make_request(Method.GET, f"/table/{table_id}/field")
 
-    def get_max_write_record(self, table_id: str, date_field: str = "write_date") -> Optional[Dict[str, Any]]:
+    def get_max_write_record(
+        self, table_id: str, date_field: str = "write_date"
+    ) -> Optional[Dict[str, Any]]:
         """Get the record with the maximum write_date from a table"""
         response = self.execute_sql_query(
             sql=f"SELECT * FROM {table_id} ORDER BY {date_field} DESC LIMIT 1"

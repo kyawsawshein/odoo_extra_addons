@@ -3,6 +3,7 @@ import logging
 from typing import Any, Dict, List
 
 import requests
+from git import Optional
 
 _logger = logging.getLogger(__name__)
 
@@ -50,9 +51,11 @@ class TeableAPIClient:
             return []
 
 
-TEABLE_API_URL = "https://app.teable.ai/api"
-BASE_ID = "bsez0Y8svP1AV6SJyPa"
-TEABLE_APP_TOKEN = "teable_acc8IjiWjSVYXOWHVns_6AnnmMilIL8PpVWrxUtso4heAtwZBrFma6TAZClEYHY="
+TEABLE_API_URL = "https://teable-team-zervi-u34072.vm.elestio.app/api"
+BASE_ID = "bsevp7nvwmXvxF5HKx4"
+TEABLE_APP_TOKEN = (
+    "teable_acc65mmZVTtEo9VcPja_M/ACnbw8UHoLtGX6HW52TYUgUArZegSjHQ3MTvNecwE="
+)
 
 
 client = TeableAPIClient(
@@ -60,6 +63,14 @@ client = TeableAPIClient(
     api_token=TEABLE_APP_TOKEN,
     base_url=TEABLE_API_URL,
 )
+
+
+def get_products_sql() -> str:
+    return f"""
+        SELECT *
+        FROM "{BASE_ID}"."Products"
+        WHERE "default_code" IN ($codes)
+    """
 
 
 def get_manufacture_orders_sql() -> str:
@@ -117,9 +128,71 @@ def get_manufacture_orders() -> List:
     return manufacture_orders
 
 
-mo_orders = get_manufacture_orders()
+# mo_orders = get_manufacture_orders()
 
-print("Final Manufacture Orders with lines:", mo_orders)
+# print("Final Manufacture Orders with lines:", mo_orders)
+
+
+def get_fields_sql(table_id: str, field: str) -> str:
+    return f"""
+        SELECT "__id",{field}
+        FROM "{BASE_ID}"."{table_id}"
+        WHERE "{field}" IN ($values)
+    """
+
+
+def get_record_by_unique_fields(
+    table_id: str, unique_field: str, record_ids: str
+) -> Optional[Dict]:
+    records = []
+    response = client.execute_sql_query(
+        sql=f'SELECT * FROM "{table_id}" WHERE "{unique_field}" IN ($record_ids)'
+    )
+    if response and response.get("rows"):
+        records.append(response)
+
+    return records
+
+
+sql = f"""
+  BASE_ID,
+    `SELECT 
+      "__id",
+      "Product",
+      "Quantity",
+      "Unit_Cost",
+      "Total_Cost"
+    FROM "${BASE_ID}"."BOM_Lines"
+    WHERE "${BASE_ID}"."BOM_Lines"."BOM" = '$bomId'
+    LIMIT 200`
+"""
+
+
+products = client.execute_sql_query(
+    sql=sql.replace("$BASE_ID", BASE_ID).replace("$bomId", "CK999")
+)
+
+print("Products by codes:", products)
+
+# fields_dict = {}
+
+# for product in products.get("rows", []):
+#     fields_dict[product.get("default_code")] = product
+
+# print("Products by codes:", fields_dict)
+
+
+# 2026-04-07 08:59:00,924 1 INFO odoo odoo.addons.api_module.helper.teable_endpoint: Upsert product record with unique field default_code and
+# value = 'EL10612','EL10610','EL10611','WV370','CFO-N56NM580','MW311R','WV400','WV200','SP013AJ','EL109-1'
+# records = [{'id': 107803, 'default_code': 'EL10612', 'barcode': 'EL10612', 'complete_name': 'RM / BINDING / ELASTIC / WEBBING', 'standard_price': 0.0, 'list_price': 1.0, 'uom_id': {'id': 'recMEq4Fk50PiYQnR5M'}, 'write_date': 1768287177.636381}, {'id': 107804, 'default_code': 'EL10610', 'barcode': 'EL10610', 'complete_name': 'RM / BINDING / ELASTIC / WEBBING', 'standard_price': 0.0, 'list_price': 1.0, 'uom_id': {'id': 'recMEq4Fk50PiYQnR5M'}, 'write_date': 1768287177.636381}, {'id': 107802, 'default_code': 'EL10611', 'barcode': 'EL10611', 'complete_name': 'RM / BINDING / ELASTIC / WEBBING', 'standard_price': 0.0, 'list_price': 1.0, 'uom_id': {'id': 'recMEq4Fk50PiYQnR5M'}, 'write_date': 1768287177.636381}, {'id': 107800, 'default_code': 'WV370', 'barcode': '2729100000007', 'complete_name': 'RM / BINDING / ELASTIC / WEBBING', 'standard_price': 0.0, 'list_price': 1.0, 'uom_id': {'id': 'recMEq4Fk50PiYQnR5M'}, 'write_date': 1768287177.636381}, {'id': 107795, 'default_code': 'CFO-N56NM580', 'barcode': 'CFO-N56NM580', 'complete_name': 'RM / Zipper', 'standard_price': 0.0, 'list_price': 1.0, 'uom_id': {'id': 'recMEq4Fk50PiYQnR5M'}, 'write_date': 1768287177.636381}, {'id': 107797, 'default_code': 'MW311R', 'barcode': None, 'complete_name': 'FG / FG-PVT / MAINWAVE', 'standard_price': 0.0, 'list_price': 1.0, 'uom_id': {'id': 'recMEq4Fk50PiYQnR5M'}, 'write_date': 1768287177.636381}, {'id': 107798, 'default_code': 'WV400', 'barcode': 'WV400', 'complete_name': 'RM / BINDING / ELASTIC / WEBBING', 'standard_price': 0.0, 'list_price': 1.0, 'uom_id': {'id': 'recMEq4Fk50PiYQnR5M'}, 'write_date': 1768287177.636381}, {'id': 107801, 'default_code': 'WV200', 'barcode': 'WV200', 'complete_name': 'RM / BINDING / ELASTIC / WEBBING', 'standard_price': 0.0, 'list_price': 1.0, 'uom_id': {'id': 'recNmw9tCYwdF8z8Bgj'}, 'write_date': 1768287177.636381}, {'id': 107330, 'default_code': 'SP013AJ', 'barcode': 'SP013AJ', 'complete_name': 'EQUIPM / Spare Parts', 'standard_price': 0.0, 'list_price': 1.0, 'uom_id': {'id': 'recMEq4Fk50PiYQnR5M'}, 'write_date': 1768287177.636381}, {'id': 107806, 'default_code': 'EL109-1', 'barcode': 'EL109-1', 'complete_name': 'RM / BINDING / ELASTIC / WEBBING', 'standard_price': 0.0, 'list_price': 1.0, 'uom_id': {'id': 'recMEq4Fk50PiYQnR5M'}, 'write_date': 1768287177.636381}]
+
+
+# records = get_record_by_unique_fields(
+#     table_id="Products", unique_field="default_code", record_ids="'SVH250M','SVL250M'"
+# )
+
+# print("Records by unique fields:", records)
+
 
 # get_sale_orders = f"""
 #     SELECT so."__id","Customer", p."partner_id", "Status","Order_Date","Delivery_Date","PO_No","Source_Location","Company","Sale_Team","Name","Sales_Order_Lines"

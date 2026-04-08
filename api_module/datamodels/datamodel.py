@@ -1,7 +1,7 @@
 from dataclasses import asdict, dataclass, fields
 from datetime import date
 from enum import Enum
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
 
 
 class Method:
@@ -22,6 +22,7 @@ class TableJobParams:
     method: str
     records: List[Dict]
 
+
 @dataclass
 class BaseClass:
     def to_dict(self):
@@ -29,6 +30,12 @@ class BaseClass:
 
     def get_fields(self):
         return [f.name for f in fields(self)]
+
+
+@dataclass
+class TeableID(BaseClass):
+    name: str
+    teable_id: str
 
 
 @dataclass

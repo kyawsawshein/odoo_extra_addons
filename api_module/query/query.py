@@ -8,6 +8,7 @@ class StockSQL:
         WHERE sq.quantity > 0
         AND lot.write_date > %s
         ORDER BY lot.write_date
+        LIMIT 10
     """
 
 
@@ -17,16 +18,18 @@ class PartnerSQL:
         FROM res_partner rp
             LEFT JOIN res_country rc ON rc.id=rp.country_id
         WHERE rp.write_date > %s
+        LIMIT 10
     """
 
 
 class ProductSQL:
     producdt = """
-        SELECT pp.id,pt.default_code,pp.barcode,pc.complete_name,pp.standard_price->'1' AS standard_price,pt.list_price,uom.name->'en_US' AS uom_id, EXTRACT(EPOCH FROM pp.write_date) AS write_date
+        SELECT pp.id,pt.default_code,pp.barcode,pc.complete_name AS categ_id,pp.standard_price->'1' AS standard_price,pt.list_price,uom.name->'en_US' AS uom_id, EXTRACT(EPOCH FROM pp.write_date) AS write_date
         FROM product_product pp
             INNER JOIN product_template pt ON pt.id=pp.product_tmpl_id
             INNER JOIN product_category pc ON pc.id=pt.categ_id
             INNER JOIN uom_uom uom ON uom.id=pt.uom_id
         WHERE pp.write_date > %s
         ORDER BY pp.write_date
+    LIMIT 10
     """

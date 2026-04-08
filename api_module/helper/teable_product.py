@@ -28,7 +28,7 @@ class TeableProductAPI(TeableAPIClient):
 
     def get_products_sql(self) -> str:
         return f"""
-            SELECT *
+            SELECT "__id" As "id", "default_code", "name", "barcode", "categ_id", "standard_price", "list_price", "qty_available", "uom_id", "write_date"
             FROM "{self.database}"."Products"
             WHERE "default_code" IN ($codes)
         """
@@ -44,7 +44,9 @@ class TeableProductAPI(TeableAPIClient):
 
     def get_products(self, codes: List[str]) -> List[Dict]:
         product_dict = {}
-        sql = self.get_products_sql().replace("$codes", ",".join([f"'{code}'" for code in codes]))
+        sql = self.get_products_sql().replace(
+            "$codes", ",".join([f"'{code}'" for code in codes])
+        )
         products = self.execute_sql_query(sql=sql)
         for product in products.get("rows", []):
             product_dict[product["default_code"]] = product

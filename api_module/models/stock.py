@@ -11,7 +11,6 @@ from ...data_commom.datamodels.datamodel import (
     default_ids,
 )
 from ..helper.teable_mo import TeableManufactureAPI
-from .teable import TEABLE
 
 _logger = logging.getLogger(__name__)
 
